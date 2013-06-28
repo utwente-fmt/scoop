@@ -1,0 +1,16 @@
+# files:
+aclocal.m4
+autom4te.cache
+autotools
+config.log
+config.status
+configure
+.deps
+Makefile
+Makefile.in
+
+# patterns:
+*.hi
+*.info
+*.o
+*~
