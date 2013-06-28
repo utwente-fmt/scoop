@@ -32,9 +32,12 @@ clean::
 
 libscoop.so: LibScoop.hs lib_scoop.c
 	ghc --make $(GHC_SCOOP_SHARED) -c ${top_srcdir}/src/LibScoop.hs
-	ghc $(GHC_SCOOP_SHARED) -optc-O -optc-std=c99 -I. -I${top_srcdir}/src -o lib_scoop.o -c ${top_srcdir}/src/lib_scoop.c 
-	ghc --make $(GHC_SCOOP_SHARED) -shared -L$(GHC_LIBDIR) ${top_srcdir}/src/LibScoop.hs -o libscoop.so LibScoop_stub.dyn_o lib_scoop.o -lffi -lHSrts_thr-$(GHC_VERSION) 
-
+	ghc $(GHC_SCOOP_SHARED) -optc-O -optc-std=c99 -I. -I${top_srcdir}/src -o lib_scoop.o -c ${top_srcdir}/src/lib_scoop.c
+	if test -f  LibScoop_stub.c ; then \
+		ghc --make $(GHC_SCOOP_SHARED) -shared -L$(GHC_LIBDIR) ${top_srcdir}/src/LibScoop.hs -o libscoop.so LibScoop_stub.dyn_o lib_scoop.o -lffi -lHSrts_thr-$(GHC_VERSION) ; \
+	else \
+		ghc --make $(GHC_SCOOP_SHARED) -shared -L$(GHC_LIBDIR) ${top_srcdir}/src/LibScoop.hs -o libscoop.so lib_scoop.o -lffi -lHSrts_thr-$(GHC_VERSION); \
+	fi
 
 all-local: libscoop.so
 
