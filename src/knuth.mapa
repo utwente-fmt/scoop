@@ -1,0 +1,16 @@
+type Die = {1..6}
+
+  X = throw@(1).psum(1/2 -> A[] ++ 1/2 -> B[])
+
+  A = throw@(1).psum(
+        1/2 -> throw@(1).psum(1/2 -> Z[1] ++ 1/2 -> Z[2])
+     ++ 1/2 -> throw@(1).psum(1/2 -> Z[3] ++ 1/2 -> A[]))
+  
+  B = throw@(1).psum(
+        1/2 -> throw@(1).psum(1/2 -> Z[4] ++ 1/2 -> Z[5])
+     ++ 1/2 -> throw@(1).psum(1/2 -> Z[6] ++ 1/2 -> B[]))
+  
+  Z(j:Die)= chose(j).Z[j]
+
+init X
+reach chose
