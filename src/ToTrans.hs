@@ -14,14 +14,14 @@ toTrans ignorecycles spec confl checkConfluence checkDTMC isMA removeRates prese
     (statespace,initial,_) = getStateSpace ignorecycles spec confl checkConfluence False checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
     transitions            = snd statespace
 
-printTransitions :: [(Int, EdgeLabel, [(Probability, Int)])] -> Int -> Int -> String 
+printTransitions :: [(Int, String, EdgeLabel, [(Probability, Int)])] -> Int -> Int -> String 
 printTransitions []                                  prev index = ""
-printTransitions ((from, label, []):ts)              prev index 
+printTransitions ((from, reward, label, []):ts)              prev index 
   | from == prev = printTransitions ts from (index + 1)
   | otherwise    = printTransitions ts from 0
-printTransitions ((from, label, ((prob,to):tos)):ts) prev index
-  | from == prev = "\n" ++ show from ++ " " ++ show index ++ " " ++ show to ++ " " ++ probString ++ printTransitions ((from, label, tos):ts) from index
-  | otherwise    = "\n" ++ show from ++ " " ++ show 0     ++ " " ++ show to ++ " " ++ probString ++ printTransitions ((from, label, tos):ts) from 0
+printTransitions ((from, reward, label, ((prob,to):tos)):ts) prev index
+  | from == prev = "\n" ++ show from ++ " " ++ show index ++ " " ++ show to ++ " " ++ probString ++ printTransitions ((from, reward, label, tos):ts) from index
+  | otherwise    = "\n" ++ show from ++ " " ++ show 0     ++ " " ++ show to ++ " " ++ probString ++ printTransitions ((from, reward, label, tos):ts) from 0
   where
     probFrac   = getFraction prob
     probFrac2  = (toInteger (numerator probFrac)) % (toInteger (denominator probFrac))

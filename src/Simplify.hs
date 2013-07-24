@@ -30,9 +30,10 @@ summandReachable dataspec mapping summand = isReachable
     isReachable = and [typ == TypeName "Queue" || typ == TypeName "Nat" || nub [simplifyExpression dataspec (substituteInExpression [(par, Variable value)] c) | value <- getValues dataspec typ] /= [Variable "F"] | (par,typ) <- mapping]
 
 simplifySummand :: DataSpec -> PSummand -> PSummand
-simplifySummand dataspec (params, c, a, aps, probChoices, g)  = (params, c2, a, aps2, probChoices2, g2)
+simplifySummand dataspec (params, c, reward, a, aps, probChoices, g)  = (params, c2, reward2, a, aps2, probChoices2, g2)
      where
        c2   = simplifyExpression dataspec c
+       reward2 = simplifyExpression dataspec reward
        aps2 = map (simplifyExpression dataspec) aps
        g2   = map (simplifyExpression dataspec) g
        probChoices2 = simplifyProbChoices dataspec probChoices

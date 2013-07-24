@@ -1,0 +1,7 @@
+    type Bool = (T, F)
+
+
+X(pc : {1..2}) = 
+
+      (sum(d : {1..3}, eq(pc, 1) => a@plus(7, d) . X[2]))
+init X[1]

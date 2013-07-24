@@ -12,9 +12,10 @@ import Data.Maybe
 
 type State             = [Constant]
 type Mapping           = [(Variable, Constant)]
-type Transition        = (State, EdgeLabel, [(Probability, State)])
+type Transition        = (State, RewardString, EdgeLabel, [(Probability, State)])
 type Probability       = String
 type EdgeLabel         = String
+type RewardString      = String
 
 potentialBehaviour a b c d e f g = potentialBehaviour2 a b c d e f g
 
@@ -27,16 +28,16 @@ potentialBehaviour2 followConfluent spec confluents dataspec sourceState mapping
     rest  = potentialBehaviour2 followConfluent spec confluents dataspec sourceState mapping ss
 
 exploreSummand :: Bool -> PSpecification -> ConfluentSummands -> DataSpec -> State -> Mapping -> PSummand -> [Transition]
-exploreSummand followConfluent spec confluent dataspec sourceState mapping (((var,sort):params), c, a, aps, probChoices, g)
-  = unfoldSummation followConfluent spec confluent dataspec sourceState mapping (var,sort) (getValues dataspec sort) (params, c, a, aps, probChoices, g)
-exploreSummand followConfluent spec confluent dataspec sourceState mapping ([], c, a, aps, probChoices, g)
+exploreSummand followConfluent spec confluent dataspec sourceState mapping (((var,sort):params), c, reward, a, aps, probChoices, g)
+  = unfoldSummation followConfluent spec confluent dataspec sourceState mapping (var,sort) (getValues dataspec sort) (params, c, reward, a, aps, probChoices, g)
+exploreSummand followConfluent spec confluent dataspec sourceState mapping ([], c, reward, a, aps, probChoices, g)
   | executable = transitions -- (states, transitions)
   | otherwise  = [] -- ([], [])
   where
     executable  = evalExpr (thd3 dataspec) mapping c == "T"
     steps       = generateTransitions followConfluent spec confluent dataspec mapping probChoices g "1"
 --    states      = List.map snd steps
-    transitions = [(sourceState,a ++ (optionalParentheses (infixString (Data.List.map (evalExpr (thd3 dataspec) mapping) aps) ",")), steps)]
+    transitions = [(sourceState, evalExpr (thd3 dataspec) mapping reward, a ++ (optionalParentheses (infixString (Data.List.map (evalExpr (thd3 dataspec) mapping) aps) ",")), steps)]
 
 unfoldSummation :: Bool -> PSpecification -> ConfluentSummands -> DataSpec -> State -> Mapping -> (Variable,Type) -> [Constant] -> PSummand -> [Transition]
 unfoldSummation followConfluent spec confluent dataspec sourceState mapping (var,sort) [] summand = []

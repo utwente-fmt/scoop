@@ -113,6 +113,7 @@ failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
       '<'             { TokenSmaller }
       '>'             { TokenGreater }
       '..'            { TokenDotDot }
+      '@'             { TokenAt }
       '<='            { TokenSmallerEq }
       init            { TokenInit }
       '>='            { TokenGreaterEq }
@@ -230,14 +231,23 @@ OptionalParametersSq : {- empty -}         { [] }
                      | '[' ']'             { [] }
                      | '[' Expressions ']' { reverse $2 }
 
-RHS : RHS '++' RHS                                                    { Plus ([$1] ++ [$3]) }
-    | string OptionalParameters '.' RHS                               { if (take 4 $1) /= "rate" then ActionPrefix $1 $2 [("i0", TypeRange 1 1, (Variable "1"))] $4 else error("Error: you cannot use action names starting with 'rate'")}
-    | string OptionalParameters '{' UpdateGlobals '}' '.' RHS         { if (take 4 $1) /= "rate" then ActionPrefix ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 [("i0", TypeRange 1 1, (Variable "1"))] $7 else error("Error: you cannot use action names starting with 'rate'")}
-    | string OptionalParameters '.' PSum '(' IndepProbs ':' RHS ')'   { if (take 4 $1) /= "rate" then ActionPrefix $1 $2 $6 $8 else error("Error: you cannot use action names starting with 'rate'")}
-    | string OptionalParameters '{' UpdateGlobals '}' '.' PSum '(' IndepProbs ':' RHS ')'   {if (take 4 $1) /= "rate" then  ActionPrefix ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 $9 $11 else error("Error: you cannot use action names starting with 'rate'")}
-    | string OptionalParameters '.' PSum '(' IndepProbs ':' '{' UpdateGlobals '}' RHS ')'   {if (take 4 $1) /= "rate" then  ActionPrefix ($1  ++ "{" ++ (printExpressions $9) ++ "}") $2 $6 $11 else error("Error: you cannot use action names starting with 'rate'")}
-    | string OptionalParameters '.' PSum '(' Probs ')'                {if (take 4 $1) /= "rate" then  ActionPrefix2 $1 $2 $6 else error("Error: you cannot use action names starting with 'rate'")}
-    | string OptionalParameters '{' UpdateGlobals '}' '.' PSum '(' Probs ')'                {if (take 4 $1) /= "rate" then  ActionPrefix2 ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 $9 else error("Error: you cannot use action names starting with 'rate'")}
+Reward : '@' Expression { $2 }
+
+RHS : RHS '++' RHS                                                                        { Plus ([$1] ++ [$3]) }
+    | string OptionalParameters Reward '.' RHS                                              { if (take 4 $1) /= "rate" then ActionPrefix $3 $1 $2 [("i0", TypeRange 1 1, (Variable "1"))] $5 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters        '.' RHS                                              { if (take 4 $1) /= "rate" then ActionPrefix (Variable "0") $1 $2 [("i0", TypeRange 1 1, (Variable "1"))] $4 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters '{' UpdateGlobals '}' Reward '.' RHS                        { if (take 4 $1) /= "rate" then ActionPrefix $6 ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 [("i0", TypeRange 1 1, (Variable "1"))] $8 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters '{' UpdateGlobals '}'        '.' RHS                        { if (take 4 $1) /= "rate" then ActionPrefix (Variable "0") ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 [("i0", TypeRange 1 1, (Variable "1"))] $7 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters Reward '.' PSum '(' IndepProbs ':' RHS ')'                  { if (take 4 $1) /= "rate" then ActionPrefix $3 $1 $2 $7 $9 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters        '.' PSum '(' IndepProbs ':' RHS ')'                  { if (take 4 $1) /= "rate" then ActionPrefix (Variable "0") $1 $2 $6 $8 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters '{' UpdateGlobals '}' Reward '.' PSum '(' IndepProbs ':' RHS ')'   {if (take 4 $1) /= "rate" then  ActionPrefix $6 ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 $10 $12 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters '{' UpdateGlobals '}'        '.' PSum '(' IndepProbs ':' RHS ')'   {if (take 4 $1) /= "rate" then  ActionPrefix (Variable "0") ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 $9 $11 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters Reward '.' PSum '(' IndepProbs ':' '{' UpdateGlobals '}' RHS ')'   {if (take 4 $1) /= "rate" then  ActionPrefix $3 ($1  ++ "{" ++ (printExpressions $10) ++ "}") $2 $7 $12 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters        '.' PSum '(' IndepProbs ':' '{' UpdateGlobals '}' RHS ')'   {if (take 4 $1) /= "rate" then  ActionPrefix (Variable "0") ($1  ++ "{" ++ (printExpressions $9) ++ "}") $2 $6 $11 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters Reward '.' PSum '(' Probs ')'                {if (take 4 $1) /= "rate" then  ActionPrefix2 $3 $1 $2 $7 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters        '.' PSum '(' Probs ')'                {if (take 4 $1) /= "rate" then  ActionPrefix2 (Variable "0") $1 $2 $6 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters '{' UpdateGlobals '}' Reward '.' PSum '(' Probs ')'                {if (take 4 $1) /= "rate" then  ActionPrefix2 $6 ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 $10 else error("Error: you cannot use action names starting with 'rate'")}
+    | string OptionalParameters '{' UpdateGlobals '}'        '.' PSum '(' Probs ')'                {if (take 4 $1) /= "rate" then  ActionPrefix2 (Variable "0") ($1  ++ "{" ++ (printExpressions $4) ++ "}") $2 $9 else error("Error: you cannot use action names starting with 'rate'")}
     | Sum '(' string ':' Type ',' RHS ')'                             { Sum $3 $5 $7 }
     | Expression '=>' RHS                                             { Implication $1 $3 }
     | ProcessInstantiation                                            { $1 }
@@ -332,6 +342,7 @@ data Token = TokenSum
            | TokenNot
            | TokenPSum
            | TokenDotDot
+           | TokenAt
            | TokenHide
            | TokenRename
            | TokenEncap
@@ -380,6 +391,7 @@ instance Show Token where
      TokenDivide -> "/"
      TokenMultiply -> "*"
      TokenThen -> "<|"
+     TokenAt -> "@"
      TokenElse -> "|>"
      TokenActions -> "actions"
      TokenComma -> ","
@@ -527,6 +539,7 @@ lexer cont ('-':'>':cs) = cont TokenProbDef cs
 lexer cont (',':cs) = cont TokenComma cs
 lexer cont ('+':cs) = cont TokenPlus cs
 lexer cont ('^':cs) = cont TokenPower cs
+lexer cont ('@':cs) = cont TokenAt cs
 lexer cont ('-':cs) = cont TokenMinus cs
 lexer cont ('!':'=':cs) = cont TokenNotEqual cs
 lexer cont ('!':cs) = cont TokenNot cs
@@ -550,7 +563,7 @@ lexNumber cont cs = cont (TokenString var) rest
 
 getString [] = ("","")
 getString ('.':'.':cs) = ("", '.':'.':cs)
-getString (c:cs) | elem c "\n\t\r ',()&=*.<>+{}^:-!?/|\"[]" = ("", c:cs)
+getString (c:cs) | elem c "\n\t\r ',()&=*.<>@+{}^:-!?/|\"[]" = ("", c:cs)
                  | otherwise = (str,rest)
   where
     (s,r) = getString cs
@@ -559,7 +572,7 @@ getString (c:cs) | elem c "\n\t\r ',()&=*.<>+{}^:-!?/|\"[]" = ("", c:cs)
 
 getNumber [] = ("","")
 getNumber ('.':'.':cs) = ("", '.':'.':cs)
-getNumber (c:cs) | elem c "\n\t\r ',()&=*<>+_{}:^-!?/|\"[]" = ("", c:cs)
+getNumber (c:cs) | elem c "\n\t\r ',()&=*<>+_@{}:^-!?/|\"[]" = ("", c:cs)
                  | otherwise = (str,rest)
   where
     (s,r) = getNumber cs

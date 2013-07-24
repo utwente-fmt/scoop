@@ -203,7 +203,7 @@ printStates [] i = putStrLn "\n"
 printStates (x:xs) i = do { putStrLn ("State " ++ show i ++ ": " ++ show x) ; printStates xs (i+1)}
 
 printTransitions [] = putStrLn "\n"
-printTransitions ((from, label, distr):xs) = do {putStrLn (show from ++ " -- " ++ label ++ " --> {" ++ printDistribution distr) ; Main.printTransitions xs}
+printTransitions ((from, reward, label, distr):xs) = do {putStrLn (show from ++ " -- " ++ label ++ "@(" ++ reward ++ ") --> {" ++ printDistribution distr) ; Main.printTransitions xs}
 
 printDistribution [(prob,to)] = prob ++ " -> " ++ show to ++ "}"
 printDistribution ((prob,to):xs) = prob ++ " -> " ++ show to ++ ", " ++ printDistribution xs
