@@ -153,6 +153,8 @@ foreign import ccall write_prob_label :: CString -> (Ptr Int32) -> IO ()
 
 foreign import ccall write_rate_label :: CString -> (Ptr Int32) -> IO ()
 
+foreign import ccall write_reward_label :: CString -> (Ptr Int32) -> IO ()
+
 prcrl_explore :: StablePtr ScoopSpec -> (Ptr Int32) -> (Ptr Int32) -> (Ptr Int32) -> IO CInt
 prcrl_explore sptr src dst lbl = do
   (p_spec,_) <- deRefStablePtr sptr
@@ -172,7 +174,7 @@ prcrl_explore_smds p_spec smds src dst c_lbl = do
   lbl_ptr <- newForeignPtr_ c_lbl
   src_arr <- unsafeForeignPtrToStorableArray src_ptr (0,(length init)-1) :: IO (StorableArray Int Int32)
   dst_arr <- unsafeForeignPtrToStorableArray dst_ptr (0,(length init)-1) :: IO (StorableArray Int Int32)
-  lbl_arr <- unsafeForeignPtrToStorableArray lbl_ptr (0,4) :: IO (StorableArray Int Int32)
+  lbl_arr <- unsafeForeignPtrToStorableArray lbl_ptr (0,6) :: IO (StorableArray Int Int32)
   src_list <- sequence
             [do tmp <- readArray src_arr i
                 cs <- term_get_value (fromIntegral i) (fromIntegral tmp)
@@ -187,23 +189,24 @@ prcrl_explore_smds p_spec smds src dst c_lbl = do
            else if (take 5 lbl)=="reach" then withCString "tau" (\cs -> action_get_index cs)
            else withCString lbl (\cs -> action_get_index cs)
          if rate then
-            writeArray lbl_arr 4 2
+            writeArray lbl_arr 6 2
          else if lbl=="tau" then
-            writeArray lbl_arr 4 0
+            writeArray lbl_arr 6 0
          else if lbl=="reachConditionAction" then 
-            writeArray lbl_arr 4 3
+            writeArray lbl_arr 6 3
          else
-            writeArray lbl_arr 4 1
-         writeArray lbl_arr 0 (fromIntegral act)
+            writeArray lbl_arr 6 1
+         writeArray lbl_arr 2 (fromIntegral act)
          seqno <- get_sequence_no
-         writeArray lbl_arr 1 (fromIntegral seqno)
+         writeArray lbl_arr 3 (fromIntegral seqno)
          sequence_
            [ do if rate
                     then withCString lbl (\x -> write_rate_label x c_lbl)
                     else withCString p (\x -> write_prob_label x c_lbl)
+                withCString rew (\x -> write_reward_label x c_lbl)
                 make_call_back init dst_arr dst_list
            | (p,dst_list) <- edge_list ]
-    | (_,lbl,edge_list) <- next ]
+    | (_,rew,lbl,edge_list) <- next ]
   return (fromIntegral (length next))
     where
       make_call_back init dst_arr dst_list = do
