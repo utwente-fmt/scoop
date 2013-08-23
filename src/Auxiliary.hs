@@ -41,6 +41,12 @@ fst3 (a,b,c) = a
 snd3 (a,b,c) = b
 thd3 (a,b,c) = c
 
+fst4 (a,b,c,d) = a
+snd4 (a,b,c,d) = b
+thd4 (a,b,c,d) = c
+frt4 (a,b,c,d) = d
+
+
 -- This function takes a list of strings and a separating string
 -- and produces one string that consists of all the strings of the list
 -- in a row, separated by the separating string.

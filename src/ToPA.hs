@@ -12,7 +12,7 @@ import Data.HashMap
 import Data.Maybe
 import StepPA
 
-type TransitionInts    = (Int, EdgeLabel, [(Probability, Int)])
+type TransitionInts    = (Int, RewardString, EdgeLabel, [(Probability, Int)])
 type Statespace        = ([State], [Transition]) 
 type StatespaceInts    = ([State], [TransitionInts]) 
 type RepMapInts        = (Map State Int, [TransitionInts])
@@ -43,7 +43,7 @@ getStatesAndTransitionsConfluence ignorecycles spec confluent checkConfluence ch
   where
     (statespace, initial, visited) = getStateSpace ignorecycles spec confluent checkConfluence checkVisited checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
     numberOfStates                 = size (fst statespace) 
-    numberOfTransitions            = length [t | t <- snd statespace, snd3 t /= "reachConditionAction"]
+    numberOfTransitions            = length [t | t <- snd statespace, thd4 t /= "reachConditionAction"]
 
 -- Given a system and a set of confluent summands,
 -- this function provides the unfolded state space.
@@ -63,7 +63,7 @@ getStateSpace2 :: PSpecification -> [State] -> Int -> RepMapInts -> Representati
 getStateSpace2 spec []             highest statespace repr confluent checkConfluence checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions = statespace
 getStateSpace2 spec (state:states) highest statespace repr confluent checkConfluence checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
   | forceEvaluation = error("")
-  | checkDTMC && length(newTransitions) > 1 = error("The model is not deterministic in state " ++ show state ++ ".\nThe enabled actions are: " ++ show [b | (a,b,c) <- newTransitions]) 
+  | checkDTMC && length(newTransitions) > 1 = error("The model is not deterministic in state " ++ show state ++ ".\nThe enabled actions are: " ++ show [b | (a,r,b,c) <- newTransitions]) 
   | otherwise       = getStateSpace2 spec toExplore highest2 updatedStatespace newRepr confluent checkConfluence checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
   where
     ((newStates, newTransitions), 
@@ -76,7 +76,7 @@ getStateSpace2 spec (state:states) highest statespace repr confluent checkConflu
     updatedtransitions             = (optimisedTransitions ++ transitionsSeen)
     updatedStatespace              = (updatedstates, updatedtransitions)
     toExplore                      = (reallyNewStates ++ states)
-    forceEvaluation                = [0 | (s,a,t) <- optimisedTransitions, s < -1 || length a < -1 || or [length a < -1 || b < -1 | (a,b) <- t]] /= []
+    forceEvaluation                = [0 | (s,r,a,t) <- optimisedTransitions, s < -1 || length a < -1 || or [length a < -1 || b < -1 | (a,b) <- t]] /= []
 
 -- This function takes an LPPE, a set of states to explore, the state space
 -- that was generated so far, and a set of confluent summands.
@@ -103,19 +103,19 @@ getStateSpace2Visited spec (state:states) highest statespace repr visited conflu
     visitedTransitions             = snd newVisited1 + snd visited
     visitedStates                  = fst newVisited1 + fst visited --addListToMap2 updatedstates (fst newVisited1) (fst visited)
     newVisited2                    = (visitedStates, visitedTransitions)
-    forceEvaluation                = visitedStates < -1 || visitedTransitions < -1 || [0 | (s,a,t) <- optimisedTransitions, s < -1 || length a < -1 || or [length a < -1 || b < -1 | (a,b) <- t]] /= []
+    forceEvaluation                = visitedStates < -1 || visitedTransitions < -1 || [0 | (s,r,a,t) <- optimisedTransitions, s < -1 || length a < -1 || or [length a < -1 || b < -1 | (a,b) <- t]] /= []
 
 mergeTransitions :: [Transition] -> [Transition]
 mergeTransitions []                   = []
-mergeTransitions ((from,label,to):ts) | take 5 label == "rate(" = (from,"rate(" ++ totalRate ++ ")", to):newTS
-	                                  | otherwise               = (from,label,to):newTS2
+mergeTransitions ((from,reward,label,to):ts) | take 5 label == "rate(" = (from, reward, "rate(" ++ totalRate ++ ")", to):newTS
+	                                         | otherwise               = (from, reward, label,to):newTS2
   where
-    totalRate = writeFraction (sum [getFraction (takeWhile (/= ')') (drop 5 l)) | (f,l,t) <- ((from,label,to):ts), f == from, t == to, take 5 l == "rate("])
-    newTS     = [(f,l,t) | (f,l,t) <- ts, f /= from || t /= to	 || take 5 l /= "rate("]
-    newTS2    = mergeTransitions [(f,l,t) | (f,l,t) <- ts, f /= from || l /= label || t /= to]
+    totalRate   = writeFraction (sum [getFraction (takeWhile (/= ')') (drop 5 l)) | (f,r,l,t) <- ((from,reward,label,to):ts), f == from, t == to, take 5 l == "rate("])
+    newTS     = [(f,r,l,t) | (f,r,l,t) <- ts, f /= from || t /= to	 || take 5 l /= "rate("]
+    newTS2    = mergeTransitions [(f,r,l,t) | (f,r,l,t) <- ts, f /= from || l /= label || t /= to || r /= reward]
 
 changeTransition :: Map State Int -> Transition -> TransitionInts
-changeTransition states (i, a, next) = (fromJust (Data.HashMap.lookup i states), a, 
+changeTransition states (i, r, a, next) = (fromJust (Data.HashMap.lookup i states), r, a, 
                                        Data.List.map (\x -> (fst x, fromJust (Data.HashMap.lookup (snd x) states))) next)
 
 findReallyNewStates :: [State] -> Map State Int -> [State]
@@ -149,14 +149,14 @@ exploreState spec from sourceState repr confluent checkConfluence countVisited r
 --    confluentBehaviour               = [t | t <- confluentBehaviour_, not (elem t fakeConfluentBehaviour)]
     transNoDivergence                = potentialBehaviour False spec confluent (getDataSpec spec) sourceState mapping [summands!!i | i <- [0.. length summands - 1], not (elem i confluent)]
 --                                       ++ fakeConfluentBehaviour
-    trans__                         = if preserveDivergence && length confluentBehaviour > 0 then [(sourceState,"tau",[("1",sourceState)])] ++ transNoDivergence else transNoDivergence
+    trans__                         = if preserveDivergence && length confluentBehaviour > 0 then [(sourceState, "0", "tau",[("1",sourceState)])] ++ transNoDivergence else transNoDivergence
     trans_                          = if (not(removeRates)) then trans__ else 
 	                                      (if hasTau trans__ then removeRateTransitions trans__ else trans__)
     visitedTransitions              = length trans_
     (trans, newRepr, 
      visitedStates1, visitedTrans)  = if checkConfluence then changeToRepresentatives spec repr confluent trans_ storeReps reachActions
 	                                                     else (trans_, repr, 0, 0)
-    states_                         = concat [Data.List.map snd list | (s,a,list) <- trans]
+    states_                         = concat [Data.List.map snd list | (s,r,a,list) <- trans]
     states                          = if and (Data.List.map (checkStates spec) states_) then states_ else error("Error in ToPA")
     newTransitions                  = (states, trans)
     visitedStates                   = visitedStates1 -- + 1 --states ++ (concat [List.map snd list | (s,a,list) <- trans_]) ++ visitedStates1
@@ -177,7 +177,7 @@ changeToRepresentatives spec repr confluent (t:rest) storeReps reachActions = (n
     (newRest, newRepr2,visited2, visitedTrans2) = changeToRepresentatives spec newRepr1 confluent rest storeReps reachActions
 
 changeTransitionToRepresentatives :: PSpecification -> RepresentationMap -> ConfluentSummands -> Transition -> Bool -> [String] -> (Transition, RepresentationMap, Int, Int)
-changeTransitionToRepresentatives spec repr confluent (s,a,next) storeReps reachActions = ((newS, a, newNext), newRepr2, visited, visitedTrans)
+changeTransitionToRepresentatives spec repr confluent (s,r,a,next) storeReps reachActions = ((newS, "0", a, newNext), newRepr2, visited, visitedTrans)
   where
     newS     = s
     (newNext, newRepr2, visited, visitedTrans) = changeNextStateToRepresentatives spec repr confluent next storeReps reachActions
@@ -254,12 +254,12 @@ exploreNewState repr spec confluents v numbers low unexplored count reachActions
     -- Het onderstaande is zodat, in geval van een state met slechts 1 uitgaande tau-transitie, die ook als confluent gezien wordt
     transNonConfluent           = potentialBehaviour True spec confluents (getDataSpec spec) v mapping [summands!!i | i <- [0.. length summands - 1], not (elem i confluents)]
 --                                  ++ fakeConfluence
-    transNonConfluentInteractive = [(a,b,c) | (a,b,c) <- transNonConfluent, take 4 b /= "rate"]
+    transNonConfluentInteractive = [(a,"0", b,c) | (a,r, b,c) <- transNonConfluent, take 4 b /= "rate"]
     newstates                   = if (trans == [] && length transNonConfluentInteractive == 1 && 
-	                              length [(state,label,[("1", next)]) | (state,label,[("1", next)]) <- transNonConfluentInteractive, not (enablesObservableAction spec next reachActions && not(enablesObservableAction spec state reachActions))] == 1
-	                              && snd3 (transNonConfluentInteractive!!0) == "tau" && length (thd3 (transNonConfluentInteractive!!0)) == 1) 
-	                              then concat [Data.List.map snd next | (s,a,next) <- transNonConfluentInteractive] 
-	                              else concat [Data.List.map snd next | (s,a,next) <- trans]   
+	                              length [(state,reward,label,[("1", next)]) | (state,reward, label,[("1", next)]) <- transNonConfluentInteractive, not (enablesObservableAction spec next reachActions && not(enablesObservableAction spec state reachActions))] == 1
+	                              && thd4 (transNonConfluentInteractive!!0) == "tau" && length (frt4 (transNonConfluentInteractive!!0)) == 1) 
+	                              then concat [Data.List.map snd next | (s,r,a,next) <- transNonConfluentInteractive] 
+	                              else concat [Data.List.map snd next | (s,r,a,next) <- trans]   
     --newstates                   = concat [Data.List.map snd next | (s,a,next) <- trans]
     --------------
     (unexplored3, numbers3, already, existing) = addTransitions repr v unexplored2 numbers2 newstates
@@ -316,13 +316,13 @@ getNumberFromList ((v,i):rest) from | from == v = i
 
 hasTau :: [Transition] -> Bool
 hasTau [] = False
-hasTau ((from,label,next):rest)  = (take 4 label /= "rate" && label /= "reachConditionAction") || hasTau rest
+hasTau ((from,reward,label,next):rest)  = (take 4 label /= "rate" && label /= "reachConditionAction") || hasTau rest
 --hasTau ((from,label,next):rest)  = label == "tau" || hasTau rest
 
 removeRateTransitions :: [Transition] -> [Transition]
 removeRateTransitions [] = []
-removeRateTransitions ((from,label,next):rest) | take 4 label == "rate" = removeRateTransitions rest
-                                               | otherwise              = (from,label,next):(removeRateTransitions rest)
+removeRateTransitions ((from,reward,label,next):rest) | take 4 label == "rate" = removeRateTransitions rest
+                                               | otherwise              = (from,reward,label,next):(removeRateTransitions rest)
 
 ------------------------
 -- Invisibility check --
@@ -343,9 +343,9 @@ summandIsEnabled spec dataspec sourceState mapping (s:ss) = current || rest
     rest    = summandIsEnabled  spec dataspec sourceState mapping ss
 
 summandIsEnabled2 :: PSpecification -> DataSpec -> State -> Mapping -> PSummand -> Bool
-summandIsEnabled2 spec dataspec sourceState mapping (((var,sort):params), c, a, aps, probChoices, g)
-  = unfoldSummationEnabled spec dataspec sourceState mapping (var,sort) (getValues dataspec sort) (params, c, a, aps, probChoices, g)
-summandIsEnabled2 spec dataspec sourceState mapping ([], c, a, aps, probChoices, g) = executable
+summandIsEnabled2 spec dataspec sourceState mapping (((var,sort):params), c, reward, a, aps, probChoices, g)
+  = unfoldSummationEnabled spec dataspec sourceState mapping (var,sort) (getValues dataspec sort) (params, c, reward, a, aps, probChoices, g)
+summandIsEnabled2 spec dataspec sourceState mapping ([], c, reward, a, aps, probChoices, g) = executable
   where
     executable  = evalExpr (thd3 dataspec) mapping c == "T"
 

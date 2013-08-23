@@ -9,16 +9,19 @@ import Usage
 import Data.List
 import Auxiliary
 import Debug.Trace
+import qualified Data.Map
+import Data.Maybe
 
 data UniqueValue  = Value String | Bottom deriving (Eq, Show)
 
 type Relevance    = [(Int, Int, String)]
 type BelongsTo    = [(Int, Int)]
 type Rules        = [(Int, Int)]
+type Destinations = Data.Map.Map (Int, Int) String
 
 -- Function that applies dead variable function.
 deadVariableReduction :: Bool -> PSpecification -> PSpecification
-deadVariableReduction verbose (lppe_, initial_, dataspec) | if verbose then trace("Control flow parameters: " ++ show cfps ++ "\n\nBelongs to: " ++ show belongsTo) True else True = (lppeNew, initialNew, dataspec)
+deadVariableReduction verbose (lppe_, initial_, dataspec) | if verbose then trace("Control flow parameters: " ++ show cfps ++ "\nBelongs to: " ++ show belongsTo ++ "\nRelevant pairs: " ++ show relevantPairs) True else True = (lppeNew, initialNew, dataspec)
   where
     (lppe,initial) = addParameterToLPPE (lppe_, initial_)
     changed        = getChanged lppe
@@ -28,10 +31,12 @@ deadVariableReduction verbose (lppe_, initial_, dataspec) | if verbose then trac
     cfps           = getCFPs dataspec lppe changed rules
     dps            = getDPs dataspec lppe cfps
     belongsTo      = getBelongsTo dataspec lppe changed used rules dps cfps
+    destinations   = getDestinations dataspec lppe [(summandNr, parNr) | summandNr <- getPSummandNrs lppe, parNr <- cfps, elem (summandNr, parNr) rules]
     relevant       = initialRelevance dataspec lppe directlyUsed belongsTo dps cfps
-    relevantPairs  = getRelevance dataspec lppe rules belongsTo relevant dps cfps
-    initialNew     = initial -- improveInitialState dataspec lppe belongsTo relevantPairs initial
-    lppeNew        = transformLPPE dataspec lppe rules belongsTo initialNew dps cfps relevantPairs
+    relevantPairs  = getRelevance dataspec lppe rules belongsTo relevant dps cfps destinations
+    initialNew     = initial
+                     -- improveInitialState dataspec lppe belongsTo relevantPairs initial
+    lppeNew        = transformLPPE dataspec lppe rules belongsTo initialNew dps cfps relevantPairs destinations
 
 -----------------------------------------------------------
 -- Functions for computing the source and destination of --
@@ -71,6 +76,12 @@ destination dataspec lppe summandNr parNr = destination
     destination          = case (nextState2) of
                              (Variable v)         -> if (expressionIsConstant dataspec (Variable v)) then Value v else Bottom
                              (Function name pars) -> Bottom
+
+getDestinations :: DataSpec -> LPPE -> [(Int, Int)] -> Destinations
+getDestinations dataspec lppe [] = Data.Map.empty
+getDestinations dataspec lppe ((summandNr, parNr):rest) = Data.Map.insert (summandNr, parNr) (destinationValue dataspec lppe summandNr parNr) restMap
+  where
+    restMap = getDestinations dataspec lppe rest
 
 destinationValue :: DataSpec -> LPPE -> Int -> Int -> String
 destinationValue dataspec lppe summandNr parNr = value
@@ -114,18 +125,18 @@ directRelevance dataspec lppe directlyUsed belongsTo cfps dp = nub [(dp, cfp, va
                                                                                    cfp <- cfps, elem (dp, cfp) belongsTo, value <- [sourceValue dataspec lppe i cfp]] 
                                                                                    
 
-getRelevance :: DataSpec -> LPPE -> Rules -> BelongsTo -> Relevance -> [Int] -> [Int] -> Relevance
-getRelevance dataspec lppe rules belongsTo r dps cfps | newPairs  = getRelevance dataspec lppe rules belongsTo (nub (r ++ newR)) dps cfps
+getRelevance :: DataSpec -> LPPE -> Rules -> BelongsTo -> Relevance -> [Int] -> [Int] -> Destinations -> Relevance
+getRelevance dataspec lppe rules belongsTo r dps cfps destinations | newPairs  = getRelevance dataspec lppe rules belongsTo (nub (r ++ newR)) dps cfps destinations
                                    | otherwise = r
   where
-    newR     = nub ((concat (map (indirectRelevance2 dataspec lppe rules belongsTo r) (allCombinations [dps, cfps]))) ++
-                    (concat (map (indirectRelevance3 dataspec lppe cfps rules belongsTo r) (allCombinations [dps, cfps]))))
+    newR     = nub ((concat (map (indirectRelevance2 dataspec lppe rules belongsTo r destinations) (allCombinations [dps, cfps]))) ++
+                    (concat (map (indirectRelevance3 dataspec lppe cfps rules belongsTo r destinations) (allCombinations [dps, cfps]))))
     newPairs = newR \\ r /= []
 
-indirectRelevance2 :: DataSpec -> LPPE -> Rules -> BelongsTo -> Relevance -> [Int] -> Relevance
-indirectRelevance2 dataspec lppe rules belongsTo relevant [dp, cfp] | elem (dp, cfp) belongsTo = [(dp, cfp, value) | i <- getPSummandNrs lppe,
-                                                                                          elem (i, cfp) rules, 
-                                                                                          usedInRelevantNextState lppe i dp relevant cfp (destinationValue dataspec lppe i cfp),
+indirectRelevance2 :: DataSpec -> LPPE -> Rules -> BelongsTo -> Relevance -> Destinations -> [Int] -> Relevance
+indirectRelevance2 dataspec lppe rules belongsTo relevant destinations [dp, cfp] | elem (dp, cfp) belongsTo = [(dp, cfp, value) | i <- getPSummandNrs lppe,
+                                                                                          elem (i, cfp) rules,
+                                                                                          usedInRelevantNextState lppe i dp relevant cfp (fromJust (Data.Map.lookup (i, cfp) destinations)),--(destinationValue dataspec lppe i cfp),
                                                                                           value <- [sourceValue dataspec lppe i cfp]
                                                                                      ]
                                                   | otherwise = []
@@ -136,18 +147,20 @@ usedInRelevantNextState lppe summandNr dk relevant cfp target = or [variableInEx
     summand   = getPSummand lppe summandNr
     parameter = fst ((getLPPEPars lppe)!!dk)
 
-indirectRelevance3 :: DataSpec -> LPPE -> [Int] -> Rules -> BelongsTo -> Relevance -> [Int] -> Relevance
-indirectRelevance3 dataspec lppe cfps rules belongsTo relevant [dk, dj] | elem (dk, dj) belongsTo = [(dk, dj, value) | i <- getPSummandNrs lppe,
-                                                                                          indirectRelevance3_ dataspec lppe cfps i dk dj rules belongsTo relevant,
+indirectRelevance3 :: DataSpec -> LPPE -> [Int] -> Rules -> BelongsTo -> Relevance -> Destinations -> [Int] -> Relevance
+indirectRelevance3 dataspec lppe cfps rules belongsTo relevant destinations [dk, dj] | elem (dk, dj) belongsTo = [(dk, dj, value) | i <- getPSummandNrs lppe,
+                                                                                          indirectRelevance3_ dataspec lppe cfps i dk dj rules belongsTo destinations relevant parameters,
                                                                                           value <- [sourceValue dataspec lppe i dj]]
                                                   | otherwise = []
+  where
+    parameters = [0..length (getLPPEPars lppe) - 1]
 
-indirectRelevance3_ :: DataSpec -> LPPE -> [Int] -> Int -> Int -> Int -> Rules -> BelongsTo -> Relevance -> Bool
-indirectRelevance3_ dataspec lppe cfps summandNr dk dj rules belongsTo relevant = valid
+indirectRelevance3_ :: DataSpec -> LPPE -> [Int] -> Int -> Int -> Int -> Rules -> BelongsTo -> Destinations -> Relevance -> [Int] -> Bool
+indirectRelevance3_ dataspec lppe cfps summandNr dk dj rules belongsTo destinations relevant parameters = valid
   where
     summand   = getPSummand lppe summandNr
-    parameters = [0..length (getLPPEPars lppe) - 1]
-    valid = or [usedInRelevantNextState2 lppe summandNr dk belongsTo relevant dp (destinationValue dataspec lppe summandNr dp) dj | dp <- cfps, elem (summandNr, dp) rules]
+    valid = or [usedInRelevantNextState2 lppe summandNr dk belongsTo relevant dp (fromJust (Data.Map.lookup (summandNr, dp) destinations)) dj | dp <- cfps, elem (summandNr, dp) rules]
+          --(destinationValue dataspec lppe summandNr dp) dj | dp <- cfps, elem (summandNr, dp) rules]
 
 usedInRelevantNextState2 lppe summandNr dk belongsTo relevant cfp target dj = or [variableInExpression parameter (getNextState summand l) | (l,cfpp,targett) <- relevant, cfp == cfpp, target == targett, not(elem (l, dj) belongsTo)] 
   where
@@ -155,27 +168,27 @@ usedInRelevantNextState2 lppe summandNr dk belongsTo relevant cfp target dj = or
     parameter = fst ((getLPPEPars lppe)!!dk)
 
 
-transformLPPE :: DataSpec -> LPPE -> Rules -> BelongsTo -> InitialState -> [Int] -> [Int] -> Relevance -> LPPE
-transformLPPE dataspec (LPPE name pars summands) rules belongsTo initial dps cfps relevant = LPPE name pars (transformSummands dataspec (LPPE name pars summands) rules belongsTo initial dps cfps relevant summands 0)
+transformLPPE :: DataSpec -> LPPE -> Rules -> BelongsTo -> InitialState -> [Int] -> [Int] -> Relevance -> Destinations -> LPPE
+transformLPPE dataspec (LPPE name pars summands) rules belongsTo initial dps cfps relevant destinations = LPPE name pars (transformSummands dataspec (LPPE name pars summands) rules belongsTo initial dps cfps relevant destinations summands 0)
 
-transformSummands dataspec lppe rules belongsTo initial dps cfps relevant [] i = [] 
-transformSummands dataspec lppe rules belongsTo initial dps cfps relevant (s:ss) i = (transformSummand dataspec lppe rules belongsTo i initial dps cfps relevant s):
-                                                                      (transformSummands dataspec lppe rules belongsTo initial dps cfps relevant ss (i+1))
+transformSummands dataspec lppe rules belongsTo initial dps cfps relevant destinations [] i = [] 
+transformSummands dataspec lppe rules belongsTo initial dps cfps relevant destinations (s:ss) i = (transformSummand dataspec lppe rules belongsTo i initial dps cfps relevant destinations s):
+                                                                      (transformSummands dataspec lppe rules belongsTo initial dps cfps relevant destinations ss (i+1))
 
-transformSummand dataspec lppe rules belongsTo i initial dps cfps relevant (params, c, a, aps, probChoices, g) = newSummand
+transformSummand dataspec lppe rules belongsTo i initial dps cfps relevant destinations (params, c, reward, a, aps, probChoices, g) = newSummand
   where
-    newG       = transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant g [0..length g - 1]
-    newSummand = (params, c, a, aps, probChoices, newG)
+    newG       = transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant destinations g [0..length g - 1]
+    newSummand = (params, c, reward, a, aps, probChoices, newG)
 
-transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant g []     = g
-transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant g (k:ks) | reset && (g!!k) /= Variable (initial!!k) = transformNextStates2 dataspec lppe rules belongsTo i initial dps cfps relevant newG ks (g!!k) (initial!!k)
-                                                                       | otherwise = transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant g ks
+transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant destinations g []     = g
+transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant destinations g (k:ks) | reset && (g!!k) /= Variable (initial!!k) = transformNextStates2 dataspec lppe rules belongsTo i initial dps cfps relevant destinations newG ks (g!!k) (initial!!k)
+                                                                       | otherwise = transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant destinations g ks
   where
     newG = (take k g) ++ [Variable (initial!!k)] ++ (drop (k+1) g) 
-    relevanceInfo = [elem k dps && elem (i, cfp) rules && elem (k,cfp) belongsTo && not(elem (k, cfp, destinationValue dataspec lppe i cfp) relevant) | cfp <- cfps]
+    relevanceInfo = [elem k dps && elem (i, cfp) rules && elem (k,cfp) belongsTo && not(elem (k, cfp, (fromJust (Data.Map.lookup (i, cfp) destinations))) relevant) | cfp <- cfps]
     reset = (relevanceInfo /= [] && or relevanceInfo)
 
-transformNextStates2 dataspec lppe rules belongsTo i initial dps cfps relevant newG ks old new = transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant newG ks
+transformNextStates2 dataspec lppe rules belongsTo i initial dps cfps relevant destinations newG ks old new = transformNextStates dataspec lppe rules belongsTo i initial dps cfps relevant destinations newG ks
 
 improveInitialState :: DataSpec -> LPPE -> BelongsTo -> Relevance -> InitialState -> InitialState
 improveInitialState dataspec lppe belongsTo relevant initial = [improveInitialValue dataspec lppe initial belongsTo relevant parNr (initial!!parNr) | parNr <- [0..length initial - 1]]

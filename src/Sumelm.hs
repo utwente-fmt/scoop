@@ -20,19 +20,21 @@ sumelm ((LPPE name pars summands), initialState, dataspec) = (LPPE name pars new
 -- This function removes unnecessary summations from a summand.
 sumelmPSummand :: PSummand -> [Variable] -> PSummand
 sumelmPSummand s [] = s
-sumelmPSummand (params, c, a, aps, probChoices, g) (var:vars) 
-  | variableNotUsed = sumelmPSummand (paramsNew, c, a, aps, probChoices, g) vars
-  | onlyOneValue    = sumelmPSummand (paramsNew, cNew, a, apsNew, probChoices, gNew) vars
-  | otherwise       = sumelmPSummand (params, c, a, aps, probChoices, g) vars
+sumelmPSummand (params, c, reward, a, aps, probChoices, g) (var:vars) 
+  | variableNotUsed = sumelmPSummand (paramsNew, c, reward, a, aps, probChoices, g) vars
+  | onlyOneValue    = sumelmPSummand (paramsNew, cNew, rewardNew, a, apsNew, probChoices, gNew) vars
+  | otherwise       = sumelmPSummand (params, c, reward, a, aps, probChoices, g) vars
   where
     paramsNew                = [(v,t) | (v,t) <- params, not (v == var)]
     variableNotUsed          = not(variableInExpression var c) && 
-                               not(variableInExpressions var aps) &&
+                               not(variableInExpression var reward) && 
+							   not(variableInExpressions var aps) &&
                                not(variableInExpressions var g)
     value                    = possibleValueForConditionToBeTrue var c
     onlyOneValue             = value /= Undecided
     UniqueValue uniqueChoice = value
     cNew                     = substituteInExpression [(var, uniqueChoice)] c
+    rewardNew                = substituteInExpression [(var, uniqueChoice)] reward
     apsNew                   = map (substituteInExpression [(var, uniqueChoice)]) aps
     gNew                     = if (elem var (map fst3 probChoices)) then g else (map (substituteInExpression [(var, uniqueChoice)]) g)
 

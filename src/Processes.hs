@@ -34,9 +34,10 @@ type ProbDistr  = Expression
 type Probabilities = [(Variable, Type, ProbDistr)]
 type ProbDef = (Expression, ProcessTerm)
 type ConstantDefs  = [(String, String)]
+type Reward = Expression
 
-data ProcessTerm  = ActionPrefix     Action ActionPars Probabilities ProcessTerm
-                  | ActionPrefix2    Action ActionPars [ProbDef]
+data ProcessTerm  = ActionPrefix     Reward Action ActionPars Probabilities ProcessTerm
+                  | ActionPrefix2    Reward Action ActionPars [ProbDef]
                   | Implication      Expression ProcessTerm
                   | LambdaPrefix     Expression ProcessTerm
                   | Plus             [ProcessTerm]
@@ -75,8 +76,8 @@ unfoldUpdates2 procs (Plus rhss) = Plus (map (unfoldUpdates2 procs) rhss)
 unfoldUpdates2 procs (ProcessInstance name pars) = ProcessInstance name pars
 unfoldUpdates2 procs (Implication cond rhs) = Implication cond (unfoldUpdates2 procs rhs)
 unfoldUpdates2 procs (LambdaPrefix lambda rhs) = LambdaPrefix lambda (unfoldUpdates2 procs rhs)
-unfoldUpdates2 procs (ActionPrefix act pars prob rhs) = ActionPrefix act pars prob (unfoldUpdates2 procs rhs)
-unfoldUpdates2 procs (ActionPrefix2 act pars distrs) = ActionPrefix2 act pars [(e, unfoldUpdates2 procs r) | (e,r) <- distrs]
+unfoldUpdates2 procs (ActionPrefix reward act pars prob rhs) = ActionPrefix reward act pars prob (unfoldUpdates2 procs rhs)
+unfoldUpdates2 procs (ActionPrefix2 reward act pars distrs) = ActionPrefix2 reward act pars [(e, unfoldUpdates2 procs r) | (e,r) <- distrs]
 unfoldUpdates2 procs (ProcessInstance2 name pars) | correct      = ProcessInstance name newPars
                                                   | not(correct) = error(message)
   where 
@@ -100,14 +101,14 @@ functionaliseProbabilities2 i j (Implication cond rhs) = (Implication cond newRH
 functionaliseProbabilities2 i j (LambdaPrefix lambda rhs) = (LambdaPrefix lambda newRHS, nextIndex)
   where
     (newRHS, nextIndex) = functionaliseProbabilities2 i j rhs
-functionaliseProbabilities2 i j (ActionPrefix act pars prob rhs) = (ActionPrefix act pars prob newRHS, nextIndex)
+functionaliseProbabilities2 i j (ActionPrefix reward act pars prob rhs) = (ActionPrefix reward act pars prob newRHS, nextIndex)
   where
     (newRHS, nextIndex) = functionaliseProbabilities2 i j rhs
 functionaliseProbabilities2 i j (Plus rhss) = (Plus newRHSs, nextIndex)
   where
     (newRHSs, nextIndex) = functionaliseList i j rhss
-functionaliseProbabilities2 i j (ActionPrefix2 act pars distrs) | not(specificCase) = (ActionPrefix act pars prob  newRHS , nextIndex) 
-                                                                | otherwise         = (ActionPrefix act pars prob2 newRHS2, nextIndex2)
+functionaliseProbabilities2 i j (ActionPrefix2 reward act pars distrs) | not(specificCase) = (ActionPrefix reward act pars prob  newRHS , nextIndex) 
+                                                                | otherwise         = (ActionPrefix reward act pars prob2 newRHS2, nextIndex2)
   where
     (prob, newRHS, nextIndex)    = transformDistributionGeneral i j distrs
     instantiations               = [getInstantiationName r | (p,r) <- distrs]
@@ -172,9 +173,10 @@ substituteInProcessTerm subs (Implication c rhs) = Implication (substituteInExpr
 substituteInProcessTerm subs (Sum var typ rhs)   = Sum (var ++ "_") typ (substituteInProcessTerm subs2 (substituteInProcessTerm [(var, Variable (var ++ "_"))] rhs))
   where
 	subs2 = removeFromSubstitutionsList [var] subs
-substituteInProcessTerm subs (ActionPrefix a aps probs (ProcessInstance name nextPars))
-  = ActionPrefix a newAps newProbs (ProcessInstance name nextvals)
+substituteInProcessTerm subs (ActionPrefix reward a aps probs (ProcessInstance name nextPars))
+  = ActionPrefix newReward a newAps newProbs (ProcessInstance name nextvals)
     where
+      newReward = substituteInExpression subs reward
       newAps   = map (substituteInExpression subs) aps
       newProbs = [(v, t, substituteInExpression (removeFromSubstitutionsList [v] subs) f) | (v,t,f) <- probs]
       subs2    = removeFromSubstitutionsList [v | (v,t,f) <- probs] subs
@@ -199,9 +201,10 @@ variableUsedInProcessTerm var (ProcessInstance name pars) = or (map (variableInE
 variableUsedInProcessTerm var (Plus rhss)                 = or (map (variableUsedInProcessTerm var) rhss)
 variableUsedInProcessTerm var (Sum v typ rhs) | var == v  = False
                                       | otherwise = variableUsedInProcessTerm var rhs
-variableUsedInProcessTerm var (ActionPrefix act pars probs rhs)
-  = inAps || inDistr || ((not inProbSums) && variableUsedInProcessTerm var rhs)
+variableUsedInProcessTerm var (ActionPrefix reward act pars probs rhs)
+  = inReward || inAps || inDistr || ((not inProbSums) && variableUsedInProcessTerm var rhs)
     where
+      inReward   = variableInExpression var reward
       inAps      = or (map (variableInExpression var) pars)
       inDistr    = or [variableInExpression var f | (v,t,f) <- probs, var /= v]
       inProbSums = [v | (v,t,f) <- probs, var == v] /= []

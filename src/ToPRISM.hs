@@ -63,7 +63,8 @@ getTypeSpec typeName ((EnumString name values):xs) | name == typeName = error("N
 	                                               | otherwise      = getTypeSpec typeName xs
 
 summandsToPRISM _ _ _ _ [] = ""
-summandsToPRISM procPars checkuntil actions dataspec ((params, c, a, aps, probChoices, g):xs) = "  " ++ thisSummand ++ ";\n" ++ (summandsToPRISM procPars checkuntil actions dataspec xs)
+summandsToPRISM procPars checkuntil actions dataspec ((params, c, reward, a, aps, probChoices, g):xs) | reward /= Variable "0" = error("Rewards not yet supported in export to PRISM.")
+                                                                                                      | otherwise = "  " ++ thisSummand ++ ";\n" ++ (summandsToPRISM procPars checkuntil actions dataspec xs)
   where
     action      = "[" ++ a ++ "]" -- if checkuntil then "[" ++ a ++ "]" else (if (elem a (map fst actions)) then "[" ++ a ++ "]" else "[]")
     condition   = expressionToPRISM c
@@ -107,14 +108,15 @@ unfoldSummands _ [] = []
 unfoldSummands dataspec (s:ss) = unfoldSummand dataspec s ++ unfoldSummands dataspec ss
 
 unfoldSummand :: DataSpec -> PSummand -> [PSummand]
-unfoldSummand dataspec ([], c, a, aps, probChoices, g)     = [([], c, a, aps, probChoices, g)]
-unfoldSummand dataspec (((var,typ):pars), c, a, aps, probChoices, g) = concat (map (unfoldSummand dataspec) newSummands)
+unfoldSummand dataspec ([], c, reward, a, aps, probChoices, g)     = [([], c, reward, a, aps, probChoices, g)]
+unfoldSummand dataspec (((var,typ):pars), c, reward, a, aps, probChoices, g) = concat (map (unfoldSummand dataspec) newSummands)
   where
-    newSummands = unfoldNonDet var (getValues dataspec typ) (pars, c, a, aps, probChoices, g)
+    newSummands = unfoldNonDet var (getValues dataspec typ) (pars, c, reward, a, aps, probChoices, g)
 
 unfoldNonDet var [] _ = []
-unfoldNonDet var (val:values) (pars, c, a, aps, probChoices, g) = (pars, newCondition, a, newAps, newProbChoices, newG):(unfoldNonDet var values (pars, c, a, aps, probChoices, g))
+unfoldNonDet var (val:values) (pars, c, reward, a, aps, probChoices, g) = (pars, newCondition, newReward, a, newAps, newProbChoices, newG):(unfoldNonDet var values (pars, c, reward, a, aps, probChoices, g))
   where
+    newReward      = substituteInExpression [(var, (Variable val))] reward
     newCondition   = substituteInExpression [(var, (Variable val))] c
     newAps         = map (substituteInExpression [(var, (Variable val))]) aps
     newProbChoices = map (\x -> (fst3 x, snd3 x, substituteInExpression [(var, (Variable val))] (thd3 x))) probChoices

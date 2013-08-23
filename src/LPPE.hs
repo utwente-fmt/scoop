@@ -27,7 +27,7 @@ instance Show LPPEShowPRCRL where
                             ++ map (printType.snd) params ++ [printType t | summand <- summands, (v,t) <- getLocalPars summand]
                             ++ [printType t | summand <- summands, (v,t,f) <- getProbChoices summand] )
       functions      = concat (map getFunctionsInPSummand summands)
-      dataspec2      = removeUnusedTypesAndFunctions dataspec types functions
+      dataspec2      = removeUnusedTypesAndFunctions dataspec (types \\ ["Bool"]) functions
       datastring     = "\n  \n" ++ printDataSpec dataspec2 ++ "\n  \n"
       newParams      = map (\x -> (fst x, printType (snd x))) params
 
@@ -42,7 +42,7 @@ instance Show LPPEShow where
 type LocalPars   = [(Variable, Type)]
 type Condition   = Expression
 type ProbChoice  = (Variable, Type, ProbDistr)
-type PSummand    = (LocalPars, Condition, Action, ActionPars, [ProbChoice], NextPars)
+type PSummand    = (LocalPars, Condition, Reward, Action, ActionPars, [ProbChoice], NextPars)
 
 removeUnusedTypesAndFunctions :: DataSpec -> [String] -> [String] -> DataSpec
 removeUnusedTypesAndFunctions dataspec types functions 
@@ -60,20 +60,21 @@ printType (TypeRange from to) = "{" ++ show from ++ ".." ++ show to ++ "}"
 
 -- This function prints a summand in pretty-print style.
 printPSummand :: DataSpec -> Bool -> ProcessName -> ProcessPars -> PSummand -> String
-printPSummand dataspec style procName procPars (params, c, a, aps, probChoices, g) = 
+printPSummand dataspec style procName procPars (params, c, reward, a, aps, probChoices, g) = 
   "(" ++ localParsToString ++ show c ++ " => " ++ a ++ commaList (map show aps)  
-  ++ " . " ++ printNextState dataspec style procName procPars (params, c, a, aps, probChoices, g) probChoices g
+  ++ rewardString ++ " . " ++ printNextState dataspec style procName procPars (params, c, reward, a, aps, probChoices, g) probChoices g
   ++ (if (length params == 0) then "" else ")") ++ ")"
     where
+      rewardString = if reward == Variable "0" then "" else "@(" ++ show reward ++ ")"
       parsList = (infixString [left ++ " : " ++ (printType right) | (left, right) <- params] ", ")
       localParsToString | length params == 0 = ""
 	                    | otherwise          = "sum(" ++ parsList ++ ", "
 
 -- This function prints a summand in prCRL style.
 printPSummandPRCRL :: DataSpec -> ProcessName -> ProcessPars -> PSummand -> String
-printPSummandPRCRL dataspec procName procPars (params, c, a, aps, probChoices, g) = 
-  "(" ++ localParsToString ++ printExpression c ++ " => " ++ a ++ commaList (map (printExpression) aps)  
-  ++ " . " ++ printNextState dataspec True procName procPars (params, c, a, aps, probChoices, g) probChoices g
+printPSummandPRCRL dataspec procName procPars (params, c, reward, a, aps, probChoices, g) = 
+  "(" ++ localParsToString ++ printExpression c ++ " => " ++ a ++ commaList (map (printExpression) aps) ++ "@" ++ (printExpression reward)  
+  ++ " . " ++ printNextState dataspec True procName procPars (params, c, reward, a, aps, probChoices, g) probChoices g
   ++ (if (length params == 0) then "" else ")") ++ ")"
     where
       parsList = (infixString [left ++ " : " ++ (printType right) | (left, right) <- params] ", ")
@@ -94,7 +95,7 @@ printNextState dataspec style procName procPars summand probChoices g
 
 -- This function prints the updates to the state
 printUpdates :: Bool -> ProcessPars -> PSummand -> NextPars -> String
-printUpdates style procPars (params, c, a, aps, probChoices, g) next = "[" ++ (infixString (getUpdates style params probChoices (zip (map fst procPars) next)) ", ") ++ "]"
+printUpdates style procPars (params, c, reward, a, aps, probChoices, g) next = "[" ++ (infixString (getUpdates style params probChoices (zip (map fst procPars) next)) ", ") ++ "]"
 
 -- This function produces the updates to the state
 getUpdates style params probChoices [] = []
@@ -142,11 +143,11 @@ getPSummandNrs lppe = [0..length (getPSummands lppe) - 1]
 
 -- Provides the action of a summand.
 getAction :: PSummand -> Action
-getAction (params, c, a, aps, probChoices, g) = a
+getAction (params, c, reward, a, aps, probChoices, g) = a
 
 -- Changes the action of a summand.
 setAction :: PSummand -> Action -> PSummand
-setAction (params, c, a, aps, probChoices, g) aNew = (params, c, aNew, aps, probChoices, g)
+setAction (params, c, reward, a, aps, probChoices, g) aNew = (params, c, reward, aNew, aps, probChoices, g)
 
 -- Provides all actions of an LPPE
 getActions :: LPPE -> [Action]
@@ -154,37 +155,37 @@ getActions lppe = map getAction (getPSummands lppe)
 
 -- Provides the condition of a summand.
 getCondition :: PSummand -> Expression
-getCondition (params, c, a, aps, probChoices, g) = c
+getCondition (params, c, reward, a, aps, probChoices, g) = c
 
 -- Provides the action of a summand
 getActionPars :: PSummand -> ActionPars
-getActionPars (params, c, a, aps, probChoices, g) = aps
+getActionPars (params, c, reward, a, aps, probChoices, g) = aps
 
 -- Provides the local parameters of a summand
 getLocalPars :: PSummand -> LocalPars
-getLocalPars (params, c, a, aps, probChoices, g) = params
+getLocalPars (params, c, reward, a, aps, probChoices, g) = params
 
--- Provides the probabililstic summations of a summand
+-- Provides the probabilistic summations of a summand
 getProbChoices :: PSummand -> [ProbChoice]
-getProbChoices (params, c, a, aps, probChoices, g) = probChoices
+getProbChoices (params, c, reward, a, aps, probChoices, g) = probChoices
 
 getNrParams :: PSpecification -> Int
 getNrParams (LPPE name params newPSummands, initialState, dataSpec) = length params
 
 -- Provides the next state for a certain parameter, given a summand.
 getNextState :: PSummand -> Int -> Expression
-getNextState (params, c, a, aps, probChoices, g) i = g!!i
+getNextState (params, c, reward, a, aps, probChoices, g) i = g!!i
 
 -- Provides the next state for all parameters, given a summand.
 getNextStateAll :: PSummand -> [Expression]
-getNextStateAll (params, c, a, aps, probChoices, g) = g
+getNextStateAll (params, c, reward, a, aps, probChoices, g) = g
 
 makeConditionLPPE :: PSummand -> ProcessPars -> Expression
 makeConditionLPPE summand pars = makeCondition pars (getNextStateAll summand)
 
 -- This function takes a summand and adds a conjunct to its condition.
 addImplication :: Expression -> PSummand -> PSummand
-addImplication cNew (params, c, a, aps, probChoices, g) = (params, Function "and" [c, cNew] , a, aps, probChoices, g)
+addImplication cNew (params, c, reward, a, aps, probChoices, g) = (params, Function "and" [c, cNew], reward, a, aps, probChoices, g)
 
 addSummand :: LPPE -> PSummand -> LPPE
 addSummand (LPPE name params summands) newSummand = LPPE name params (newSummand:summands)
@@ -196,7 +197,7 @@ addCondition (LPPE name pars summands) c nrs = LPPE name pars [if elem i nrs the
 
 -- This function takes a summand and adds a summation to its list of local parameters.
 addSummation :: LocalPars -> PSummand -> PSummand
-addSummation localPars (params, c, a, aps, probChoices, g) = (params ++ localPars, c, a, aps, probChoices, g)
+addSummation localPars (params, c, reward, a, aps, probChoices, g) = (params ++ localPars, c, reward, a, aps, probChoices, g)
 
 -- This function substitutes values for parameters in an LPPE.
 substituteInLPPE :: LPPE -> [(Int, String)] -> LPPE
@@ -206,19 +207,20 @@ substituteInLPPE (LPPE name pars summands) substitutions = LPPE name pars (map (
 
 -- This function substitutes values for parameters in a summand.
 substituteInPSummand :: [Substitution] -> PSummand -> PSummand
-substituteInPSummand subs (params, c, a, aps, probChoices, g) = (params, newCondition, a, newAps, newProbChoices, newG)
+substituteInPSummand subs (params, c, reward, a, aps, probChoices, g) = (params, newCondition, newReward, a, newAps, newProbChoices, newG)
   where
     subs2          = removeFromSubstitutionsList (map fst params) subs
     newCondition   = substituteInExpression subs2 c
+    newReward      = substituteInExpression subs2 reward
     newAps         = map (substituteInExpression subs2) aps
     subs3          = removeFromSubstitutionsList (map fst3 probChoices) subs2
     newProbChoices = map (\x -> (fst3 x, snd3 x, substituteInExpression subs3 (thd3 x))) probChoices
     newG           = map (substituteInExpression subs3) g
 
 getFunctionsInPSummand :: PSummand -> [String]
-getFunctionsInPSummand (params, c, a, aps, probChoices, g) = result
+getFunctionsInPSummand (params, c, reward, a, aps, probChoices, g) = result
   where
-    result = functionsInExpression c ++ concat (map functionsInExpression aps) ++ 
+    result = functionsInExpression c ++ functionsInExpression reward ++ concat (map functionsInExpression aps) ++ 
              concat (map functionsInExpression (map thd3 probChoices)) ++
              concat (map functionsInExpression g)
 
@@ -234,7 +236,7 @@ hide :: PSystem -> [Action] -> PSystem
 hide system []                                        = system
 hide (LPPE name pars summands, init) (action:actions) = hide newSystem actions
   where
-    newSystem = (LPPE name pars (   [(params, c, "tau" ++ (dropWhile (/= '{') a), [], probChoices, g) | (params, c, a, aps, probChoices, g) <- summands , takeWhile (/= '{') a == action]
+    newSystem = (LPPE name pars (   [(params, c, reward, "tau" ++ (dropWhile (/= '{') a), [], probChoices, g) | (params, c, reward, a, aps, probChoices, g) <- summands , takeWhile (/= '{') a == action]
                                  ++ [s | s <- summands , takeWhile (/= '{') (getAction s) /= action]), init)
 
 -- This function renames actions in a system.
@@ -242,7 +244,7 @@ rename :: PSystem -> [(Action, Action)] -> PSystem
 rename system []                                        = system
 rename (LPPE name pars summands, init) ((actFrom, actTo):actions) = rename newSystem actions
   where
-    newSystem = (LPPE name pars (   [(params, c, actTo ++ dropWhile (/= '{') a, [], probChoices, g) | (params, c, a, aps, probChoices, g) <- summands , takeWhile (/= '{') a == actFrom]
+    newSystem = (LPPE name pars (   [(params, c, reward, actTo ++ dropWhile (/= '{') a, [], probChoices, g) | (params, c, reward, a, aps, probChoices, g) <- summands , takeWhile (/= '{') a == actFrom]
                                  ++ [s | s <- summands , takeWhile (/= '{') (getAction s) /= actFrom]), init)
 
 
@@ -258,7 +260,7 @@ removeParametersFromLPPE ((LPPE name pars summands),initial,dataspec) indices = 
 -- This function changes the next state function of a summand by omitting
 -- some of the parameters. The parameter of this function indicates which
 -- parameters should be kept.
-removeParametersFromPSummand indicesToKeep (params, c, a, aps, probChoices, g) = (params, c, a, aps, probChoices, nextStatePars)
+removeParametersFromPSummand indicesToKeep (params, c, reward, a, aps, probChoices, g) = (params, c, reward, a, aps, probChoices, nextStatePars)
   where
     nextStatePars = [g!!i | i <- indicesToKeep]
 
@@ -270,7 +272,7 @@ addParameterToLPPE ((LPPE name pars summands),initial) = (LPPE name newPars newP
     newPSummands  = map addDummyToPSummand summands
     newInitial    = initial++["T"]
 
-addDummyToPSummand (params, c, a, aps, probChoices, g) = (params, Function "and" [c, Function "eq" [Variable "dummyVar_", Variable "T"]], a, aps, probChoices, gNew)
+addDummyToPSummand (params, c, reward, a, aps, probChoices, g) = (params, Function "and" [c, Function "eq" [Variable "dummyVar_", Variable "T"]], reward, a, aps, probChoices, gNew)
   where
     gNew = g++[Variable "T"]
 
@@ -286,12 +288,13 @@ suffixStringLPPE suffix (LPPE name pars summands) = LPPE name newPars newPSumman
     newPSummands   = map (suffixStringPSummand suffix substitutions) summands
 
 -- This function suffixes all variables of a summand by a string.
-suffixStringPSummand suffix substitutions (params, c, a, aps, [(v, t, f)], g) = (newParams, newC, newA, newAps, [(newV, t, newF)], newG)
+suffixStringPSummand suffix substitutions (params, c, reward, a, aps, [(v, t, f)], g) = (newParams, newC, newReward, newA, newAps, [(newV, t, newF)], newG)
 --suffixStringPSummand suffix substitutions (params, c, a, aps, probChoices, g) = (newParams, newC, a, newAps, newProbChoices, newG)
    where
      newParams = [(a ++ suffix,b) | (a,b) <- params]
      newSubs   = nub (substitutions ++ [(a, a ++ suffix) | (a,b) <- params])
      newC      = substituteInExpression [(v,Variable e) | (v,e) <- newSubs] c
+     newReward = substituteInExpression [(v,Variable e) | (v,e) <- newSubs] reward
      newAps    = map (substituteInExpression [(v,Variable e) | (v,e) <- newSubs]) aps
      newV      = v ++ suffix
      newSubs2  = nub (newSubs ++ [(v, newV)])
@@ -299,7 +302,7 @@ suffixStringPSummand suffix substitutions (params, c, a, aps, [(v, t, f)], g) = 
      newG      = map (substituteInExpression [(v,Variable e) | (v,e) <- newSubs2]) g
      newA      = substituteInActionName [(v,Variable e) | (v,e) <- newSubs2] a     
 
-suffixStringPSummand suffix substitutions (params, c, a, aps, probChoices, g) = error("Initially, all summands should have one probabilistic choice.")
+suffixStringPSummand suffix substitutions (params, c, reward, a, aps, probChoices, g) = error("Initially, all summands should have one probabilistic choice.")
 
 substituteInActionName substitutions action = aNew 
   where
@@ -348,11 +351,11 @@ getSharedActions summands1 summands2 = intersect (map getAction summands1) (map 
 mergePSummands :: [Action] -> [PSummand] -> [PSummand] -> ProcessPars -> ProcessPars -> [PSummand]
 mergePSummands sharedActions [] [] pars1 pars2                                            
   = []
-mergePSummands sharedActions ((params, c, a, aps, probChoices, g):summands1) summands2 pars1 pars2 
-  | a == "tau" || not (elem a sharedActions) = [(params, c, a, aps, probChoices, mergeNextStatesLeft g pars2)]  ++ (mergePSummands sharedActions summands1 summands2 pars1 pars2)
+mergePSummands sharedActions ((params, c, reward, a, aps, probChoices, g):summands1) summands2 pars1 pars2 
+  | a == "tau" || not (elem a sharedActions) = [(params, c, reward, a, aps, probChoices, mergeNextStatesLeft g pars2)]  ++ (mergePSummands sharedActions summands1 summands2 pars1 pars2)
   | otherwise                                = mergePSummands sharedActions summands1 summands2 pars1 pars2
-mergePSummands sharedActions [] ((params, c, a, aps, probChoices, g):summands2) pars1 pars2              
-  | a == "tau" || not (elem a sharedActions) = [(params, c, a, aps, probChoices, mergeNextStatesRight g pars1)]  ++ (mergePSummands sharedActions [] summands2 pars1 pars2)
+mergePSummands sharedActions [] ((params, c, reward, a, aps, probChoices, g):summands2) pars1 pars2              
+  | a == "tau" || not (elem a sharedActions) = [(params, c, reward, a, aps, probChoices, mergeNextStatesRight g pars1)]  ++ (mergePSummands sharedActions [] summands2 pars1 pars2)
   | otherwise                                = mergePSummands sharedActions [] summands2 pars1 pars2
 
 -- This function changes the next state function to take
@@ -380,10 +383,10 @@ combineGlobalUpdates first second | not(elem '{' first) && not(elem '{' second) 
 -- This function merges two summands that can communicate
 -- over an action.
 merge :: PSummand -> PSummand -> Action -> [PSummand]
-merge (params1, c1, a1, aps1, probChoices1, g1) (params2, c2, a2, aps2, probChoices2, g2) action = result
+merge (params1, c1, reward1, a1, aps1, probChoices1, g1) (params2, c2, reward2, a2, aps2, probChoices2, g2) action = result
      where
         apsEqual = [Function "eq" [a,b] | (a,b) <- zip aps1 aps2]
-        result   = [(params1 ++ params2, Function "and" ([c1, c2] ++ apsEqual), action, aps1, probChoices1 ++ probChoices2, g1 ++ g2)]
+        result   = [(params1 ++ params2, Function "and" ([c1, c2] ++ apsEqual), Function "plus" [reward1, reward2], action, aps1, probChoices1 ++ probChoices2, g1 ++ g2)]
 
 -- This function creates a communication function based on a list of 
 -- (action, action,action) pairs. It checks whether the inputs x and y
@@ -416,13 +419,13 @@ checkPSummands name nrPars term            = checkSummations name nrPars term
 checkSummations :: String -> Int -> ProcessTerm -> Bool
 checkSummations name nrPars (Sum v t rhs)                                           = checkSummations name nrPars rhs
 checkSummations name nrPars (Implication c rhs)                                     = checkConditions name nrPars rhs
-checkSummations name nrPars (ActionPrefix a aps probs (ProcessInstance name2 pars)) = name == name2 && length pars == nrPars
+checkSummations name nrPars (ActionPrefix reward a aps probs (ProcessInstance name2 pars)) = name == name2 && length pars == nrPars
 checkSummations name nrPars other                                                   = False
 
 -- This function walks through the conditions of the summand.
 checkConditions :: String -> Int -> ProcessTerm -> Bool
 checkConditions name nrPars (Implication c rhs) = checkConditions name nrPars rhs
-checkConditions name nrPars (ActionPrefix a aps probs (ProcessInstance name2 pars)) = name == name2 && length pars == nrPars
+checkConditions name nrPars (ActionPrefix reward a aps probs (ProcessInstance name2 pars)) = name == name2 && length pars == nrPars
 checkConditions name nrPars other  = False
 
 -- Given that a process term is in the right format, this function indeed
@@ -435,7 +438,7 @@ parsePSummand :: ProcessTerm -> ProcessPars -> Expression -> PSummand
 parsePSummand (Sum v t rhs) pars c                                       = parsePSummand rhs (pars ++ [(v,t)]) c
 parsePSummand (Implication cNew rhs) pars c | c == (Variable "T")        = parsePSummand rhs pars cNew
 parsePSummand (Implication cNew rhs) pars c | otherwise                  = parsePSummand rhs pars (Function "and" [c, cNew])
-parsePSummand (ActionPrefix a aps probs (ProcessInstance name p)) pars c = (pars, c, a, aps, probs, p)
+parsePSummand (ActionPrefix reward a aps probs (ProcessInstance name p)) pars c = (pars, c, reward, a, aps, probs, p)
 parsePSummand other pars c
   = error("Trying to interpret a specification as an LPPE even though it is not.")
 
@@ -460,8 +463,8 @@ findGlobalVariables ((v,t):pars) (i:inits) = (global ++ restGlobals, (v,t):restP
     (restGlobals, restPars, restInits) = findGlobalVariables newPars newInits
  
 fixGlobalsInPSummand :: [String] -> ProcessPars -> PSummand -> PSummand
-fixGlobalsInPSummand [] pars (params, c, a, aps, probChoices, g) = (params, c, a, aps, probChoices, g)
-fixGlobalsInPSummand (global:globals) pars (params, c, a, aps, probChoices, g) | length newValue > 1 = error("Fault in fixGlobalsInPSummand")
+fixGlobalsInPSummand [] pars (params, c, reward, a, aps, probChoices, g) = (params, c, reward, a, aps, probChoices, g)
+fixGlobalsInPSummand (global:globals) pars (params, c, reward, a, aps, probChoices, g) | length newValue > 1 = error("Fault in fixGlobalsInPSummand")
                                                                               | otherwise           = result
   where
     indices      = [i | i <- [0..length pars - 1], fst (pars!!i) == global]
@@ -470,4 +473,4 @@ fixGlobalsInPSummand (global:globals) pars (params, c, a, aps, probChoices, g) |
     realNewValue = if newValue == [] then Variable global else (newValue!!0)
     newG_        = [g!!i | i <- [0..length g - 1], not(elem i (tail indices))]
     newG         = [newG_!!i | i <- [0..firstIndex - 1]] ++ [realNewValue] ++ [newG_!!i | i <- [firstIndex + 1..length newG_ - 1]]
-    result       = fixGlobalsInPSummand globals [pars!!i | i <- [0..length pars -1], not (elem i (tail indices))] (params, c, a, aps, probChoices, newG)
+    result       = fixGlobalsInPSummand globals [pars!!i | i <- [0..length pars -1], not (elem i (tail indices))] (params, c, reward, a, aps, probChoices, newG)

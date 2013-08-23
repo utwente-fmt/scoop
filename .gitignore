@@ -10,6 +10,8 @@ Makefile
 Makefile.in
 
 # patterns:
+*.dyn_hi
+*.dyn_o
 *.hi
 *.info
 *.o

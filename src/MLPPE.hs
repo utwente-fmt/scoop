@@ -25,7 +25,7 @@ instance Show MLPPEShowMAPA where
                             ++ map (printType.snd) params ++ [printType t | summand <- summands, (v,t) <- getMLocalPars summand]
                             ++ [printType t | summand <- summands, (v,t,f) <- getMProbChoices summand] )
       functions      = concat (map getFunctionsInMSummand summands)
-      dataspec2      = removeUnusedTypesAndFunctions dataspec types functions
+      dataspec2      = removeUnusedTypesAndFunctions dataspec (types \\ ["Bool"]) functions
       datastring     = "\n  \n" ++ printDataSpec dataspec2 ++ "\n  \n"
       newParams      = map (\x -> (fst x, printType (snd x))) params
 
@@ -39,11 +39,11 @@ instance Show MLPPEShow where
   
 -- This function prints a summand in MAPA style.
 printSummandMAPA :: DataSpec -> ProcessName -> ProcessPars -> GeneralSummand -> String
-printSummandMAPA dataspec procName procPars (PSummand (params, c, a, aps, probChoices, g)) = 
-  printPSummandPRCRL dataspec procName procPars (params, c, a, aps, probChoices, g)
+printSummandMAPA dataspec procName procPars (PSummand (params, c, reward, a, aps, probChoices, g)) = 
+  printPSummandPRCRL dataspec procName procPars (params, c, reward, a, aps, probChoices, g)
 printSummandMAPA dataspec procName procPars (MSummand (params, c, lambda, g)) = 
 	"(" ++ localParsToString ++ printExpression c ++ " => <" ++ show lambda ++ "> . "  
-  ++ printNextState dataspec True procName procPars (params, c, "", [], [], g) [] g
+  ++ printNextState dataspec True procName procPars (params, c, Variable "0", "", [], [], g) [] g
   ++ (if (length params == 0) then "" else ")") ++ ")"
     where
       parsList = (infixString [left ++ " : " ++ (printType right) | (left, right) <- params] ", ")
@@ -57,7 +57,7 @@ printMSummand dataspec style procName procPars (PSummand summand)  =
   printPSummand dataspec style procName procPars summand
 printMSummand dataspec style procName procPars (MSummand (params, c, lambda, g)) =
 	"(" ++ localParsToString ++ show c ++ " => (" ++ show lambda ++ ") . " ++ 
-	printNextState dataspec style procName procPars (params, c, "", [], [], g) [] g
+	printNextState dataspec style procName procPars (params, c, Variable "0", "", [], [], g) [] g
   ++ (if (length params == 0) then "" else ")") ++ ")"
     where
       parsList = (infixString [left ++ " : " ++ (printType right) | (left, right) <- params] ", ")
@@ -72,8 +72,8 @@ decode (LPPE name params summands, initialState, dataSpec) = (MLPPE name params 
     newSummands = map decodeSummand summands
 
 decodeSummand :: PSummand -> GeneralSummand
-decodeSummand (params, c, a, aps, probChoices, g) | a == "rate" = MSummand (params, c, aps!!0, g)
-                                                  | otherwise   = PSummand (params, c, a, aps, probChoices, g)
+decodeSummand (params, c, reward, a, aps, probChoices, g) | a == "rate" = MSummand (params, c, aps!!0, g)
+                                                          | otherwise   = PSummand (params, c, reward, a, aps, probChoices, g)
 
 encode :: MSpecification -> PSpecification
 encode (MLPPE name pars summands, initialState, dataSpec) = (LPPE name pars newSummands, initialState, dataSpec)
@@ -95,17 +95,18 @@ getSummandSize (MSummand (params, c, l, g)) = parSize + conditionSize + rateSize
     conditionSize = 1 + getExpressionSize c
     rateSize      = getExpressionSize l
     nextStateSize = 1 + sum (map getExpressionSize g)
-getSummandSize (PSummand (params, c, a, aps, probChoices, g)) = parSize + conditionSize + actionSize + probSize + nextStateSize
+getSummandSize (PSummand (params, c, reward, a, aps, probChoices, g)) = parSize + conditionSize + rewardSize + actionSize + probSize + nextStateSize
   where
     parSize       = if params == [] then 0 else 1 + length params
     conditionSize = 1 + getExpressionSize c
+    rewardSize    = 1 + getExpressionSize reward
     actionSize    = 1 + sum (map getExpressionSize aps)
     probSize      = length probChoices + sum (map getExpressionSize (map thd3 probChoices))
     nextStateSize = 1 + sum (map getExpressionSize g)
 
 encodeSummand :: GeneralSummand -> PSummand
 encodeSummand (MSummand (params, c, l, g)) | labelTooSmall l = error("Rate " ++ show l ++ " not allowed.")
-                                           | otherwise       = (params, c, "rate", [l], [], g)
+                                           | otherwise       = (params, c, Variable "0", "rate", [l], [], g)
 encodeSummand (PSummand summand)           = summand
 
 labelTooSmall (Variable v) = isFraction v && (getFraction v <= getFraction "0")
@@ -143,18 +144,18 @@ getMProbChoices (MSummand (params, c, l, g)) = []
 
 getFunctionsInMSummand :: GeneralSummand -> [String]
 getFunctionsInMSummand (PSummand summand)           = getFunctionsInPSummand summand
-getFunctionsInMSummand (MSummand (params, c, l, g)) = getFunctionsInPSummand (params, c, "", [l], [], g)
+getFunctionsInMSummand (MSummand (params, c, l, g)) = getFunctionsInPSummand (params, c, Variable "0", "", [l], [], g)
 
 getMNextState :: GeneralSummand -> [Expression]
-getMNextState (PSummand (p,c,a,aps,prob,g)) = g
+getMNextState (PSummand (p,c,reward,a,aps,prob,g)) = g
 getMNextState (MSummand (params, c, l, g))  = g
 
 changeMNextState :: GeneralSummand -> [Expression] -> GeneralSummand
-changeMNextState (PSummand (p,c,a,aps,prob,g)) g2 = PSummand (p,c,a,aps,prob,g2)
+changeMNextState (PSummand (p,c,reward,a,aps,prob,g)) g2 = PSummand (p,c,reward,a,aps,prob,g2)
 changeMNextState (MSummand (params, c, l, g))  g2 = MSummand (params, c, l, g2)
 
 changeMProbChoices :: GeneralSummand -> [ProbChoice] -> GeneralSummand
-changeMProbChoices (PSummand (p,c,a,aps,prob,g)) prob2 = PSummand (p,c,a,aps,prob2,g)
+changeMProbChoices (PSummand (p,c,reward,a,aps,prob,g)) prob2 = PSummand (p,c,reward,a,aps,prob2,g)
 changeMProbChoices (MSummand (params, c, l, g))  prob2 = MSummand (params ++ [(v,t) | (v,t,f) <- prob2], c, Function "multiply" ([f | (v,t,f) <- prob2] ++ [l]), g)
 
 makeConditionMLPPE :: GeneralSummand -> ProcessPars -> Condition
