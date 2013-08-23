@@ -9,7 +9,6 @@ PrismParser.hs
 scoop
 
 # patterns:
-*.hi
-*.info
-*.o
+LibScoop_stub.c
+LibScoop_stub.h
 *~

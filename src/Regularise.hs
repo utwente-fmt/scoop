@@ -40,7 +40,7 @@ findNewVariables context pns (ProcessInstance name pars)
 findNewVariables context pns (Plus rs)                                            = concat (map (findNewVariables context pns) rs)
 findNewVariables context pns (Sum v t r)                  | variableUsedInProcessTerm v r      = (v,t):(findNewVariables context pns r)
                                                      | otherwise             = (findNewVariables context pns r)
-findNewVariables context pns (ActionPrefix a aps probs r) = newVariables ++ (findNewVariables context pns r)
+findNewVariables context pns (ActionPrefix reward a aps probs r) = newVariables ++ (findNewVariables context pns r)
   where
     newVariables = [(v,t) | (v,t,f) <- probs, or [(variableUsedInProcessTerm v r), (variableInExpression v f)]]
 
@@ -56,11 +56,11 @@ regularise context initialState regprocs explored ((name,rhs):toExplore) pars = 
          toExploreNew         = (nub (toExplore ++ toExplore2)) \\ [(name,rhs)] 
 
 transform :: [Process] -> State -> [ProcessBinding] -> ProcessPars -> ProcessTerm -> (ProcessTerm, [ProcessBinding])
-transform context initialState explored pars (ActionPrefix a aps probs r) = (thisrhs, toExploreNew)
+transform context initialState explored pars (ActionPrefix reward a aps probs r) = (thisrhs, toExploreNew)
     where
        (newrhs, params)       = getNormalForm r context initialState pars
        processname            = getInstance explored newrhs (length(explored))
-       thisrhs                = ActionPrefix a aps probs (ProcessInstance processname (params)) 
+       thisrhs                = ActionPrefix reward a aps probs (ProcessInstance processname (params)) 
        toExploreNew           = if (elem processname (map fst explored)) then [] else [(processname, newrhs)] 
 transform context initialState explored pars (Implication f rhs)          = (thisrhs, toExploreNew)
     where

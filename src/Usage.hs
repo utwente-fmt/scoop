@@ -24,14 +24,15 @@ type DirectlyUsed = [(Int, Int)]
 -- in a summand, meaning that it is used in either the action
 -- parameters, the condition, or the probabilistic choices.
 isDirectlyUsedInSummand :: PSummand -> Variable -> Bool
-isDirectlyUsedInSummand (params, c, a, aps, probChoices, g) name = directlyUsed
+isDirectlyUsedInSummand (params, c, reward, a, aps, probChoices, g) name = directlyUsed
   where
     overwrittenBySum  = elem name (map fst params)
     usedInActionPars  = variableInExpressions name aps
     usedInCondition   = variableInExpression name c
+    usedInReward      = variableInExpression name reward
     overwrittenByProb = elem name (map fst3 probChoices)
     usedInProb        = variableInExpressions name (map thd3 probChoices)
-    directlyUsed      = not overwrittenBySum && (usedInActionPars || usedInCondition || 
+    directlyUsed      = not overwrittenBySum && (usedInActionPars || usedInCondition || usedInReward ||  
                                                  (not overwrittenByProb && usedInProb))
 
 -- This function checks whether a parameter is used either directly,
@@ -40,16 +41,17 @@ isDirectlyUsedInSummand (params, c, a, aps, probChoices, g) name = directlyUsed
 -- The boolean parameter indicates whether or not a parameter is considered
 -- used in a summand when it is only used to update itself.
 isUsedInSummand :: PSummand -> Int -> Variable -> Bool -> Bool
-isUsedInSummand (params, c, a, aps, probChoices, g) i name self = used
+isUsedInSummand (params, c, reward, a, aps, probChoices, g) i name self = used
   where
     overwrittenBySum  = elem name (map fst params)
     usedInActionPars  = variableInExpressions name aps
     usedInCondition   = variableInExpression name c
+    usedInReward      = variableInExpression name reward
     overwrittenByProb = elem name (map fst3 probChoices)
     usedInProb        = variableInExpressions name (map thd3 probChoices)
     usedInNextState   = variableInExpressions name ([g!!j | j <- [0..i-1]] ++ [g!!j | j <- [i+1..length(g)-1]])
                          || (self && variableInExpression name (g!!i) && not((g!!i) == Variable name))
-    used              = not overwrittenBySum && (usedInActionPars || usedInCondition ||  
+    used              = not overwrittenBySum && (usedInActionPars || usedInCondition || usedInReward || 
                                                 (not overwrittenByProb && (usedInProb || usedInNextState)))
 
 -- This function checks whether a parameter is changed in a summand.
@@ -64,7 +66,7 @@ isChangedInSummand lppe summandNr parNr = nextState /= Variable parameter
     summand   = getPSummand lppe summandNr
     nextState = getNextState summand parNr
     parameter = fst ((getLPPEPars lppe)!!parNr)
-    (params, c, a, aps, probChoices, g) = summand
+    (params, c, reward, a, aps, probChoices, g) = summand
 
 -- Provides a list of elements of the form (i,j),
 -- indicating that summand i changes parameter j.
@@ -127,7 +129,7 @@ getChangedInNextStateNums summand ((i,name):is) | isChangedInNextState summand i
                                                 | otherwise                           = getChangedInNextStateNums summand is
 
 isChangedInNextState :: PSummand -> Int -> Variable -> Bool
-isChangedInNextState (params, c, a, aps, probChoices, g) i name = not((g!!i) == Variable name) || (elem name (map fst params)) || (elem name (map fst3 probChoices))
+isChangedInNextState (params, c, reward, a, aps, probChoices, g) i name = not((g!!i) == Variable name) || (elem name (map fst params)) || (elem name (map fst3 probChoices))
 
 getUsedInSummand :: LPPE -> Int -> [Int]
 getUsedInSummand (LPPE name pars summands) i = getUsedInSummand2 (summands!!i) (zip [0..length(pars) - 1] (map fst pars))
@@ -175,7 +177,7 @@ getRestrictedChanged2 summand [] = []
 getRestrictedChanged2 summand ((i,name):is) | result  = i:(getRestrictedChanged2 summand is)
                                             | otherwise = getRestrictedChanged2 summand is
   where
-    (params, c, a, aps, probChoices, g) = summand
+    (params, c, reward, a, aps, probChoices, g) = summand
     nextState = getNextState summand i
     result = not(elem name (map fst params)) && not (elem name (map fst3 probChoices))
            && (nextState == Variable name || isAddition nextState name)
@@ -187,7 +189,6 @@ isSubtraction (Function "minus" [var, Variable val]) name | var == Variable name
 isSubtraction _ _                                                                                                          = False
 
 
-
 getUsedInAction :: LPPE -> Int -> [Int]
 getUsedInAction (LPPE name pars summands) i = getUsedInAction2 (summands!!i) (zip [0..length(pars) - 1] (map fst pars))
 
@@ -196,9 +197,23 @@ getUsedInAction2 summand [] = []
 getUsedInAction2 summand ((i,name):is) | used      = i:(getUsedInAction2 summand is)
                                        | otherwise = getUsedInAction2 summand is
   where
-    (params, c, a, aps, probChoices, g) = summand
-    overwrittenBySum                    = elem name (map fst params)
-    used                                = not(overwrittenBySum) && variableInExpressions name aps
+    (params, c, reward, a, aps, probChoices, g) = summand
+    overwrittenBySum                            = elem name (map fst params)
+    used                                        = not(overwrittenBySum) && variableInExpressions name aps
+
+
+getUsedInReward :: LPPE -> Int -> [Int]
+getUsedInReward (LPPE name pars summands) i = getUsedInReward2 (summands!!i) (zip [0..length(pars) - 1] (map fst pars))
+
+getUsedInReward2 :: PSummand -> [(Int, Variable)] -> [Int]
+getUsedInReward2 summand [] = []
+getUsedInReward2 summand ((i,name):is) | used      = i:(getUsedInReward2 summand is)
+                                       | otherwise = getUsedInReward2 summand is
+  where
+    (params, c, reward, a, aps, probChoices, g) = summand
+    overwrittenBySum                            = elem name (map fst params)
+    used                                        = not(overwrittenBySum) && variableInExpression name reward
+
 
 getUsedInNext :: LPPE -> Int -> [Int]
 getUsedInNext (LPPE name pars summands) i = getUsedInNext2 (summands!!i) (zip [0..length(pars) - 1] (map fst pars))
@@ -208,7 +223,7 @@ getUsedInNext2 summand [] = []
 getUsedInNext2 summand ((i,name):is) | used      = i:(getUsedInNext2 summand is)
                                        | otherwise =  getUsedInNext2 summand is
   where
-    (params, c, a, aps, probChoices, g) = summand
+    (params, c, reward, a, aps, probChoices, g) = summand
     overwrittenBySum                    = elem name (map fst params)
     usedInNextState                     = variableInExpressions name ([g!!j | j <- [0..i-1]] ++ [g!!j | j <- [i+1..length(g)-1]])
                                           || (variableInExpression name (g!!i) && not((g!!i) == Variable name))
@@ -224,7 +239,7 @@ getUsedInCondition2 summand [] = []
 getUsedInCondition2 summand ((i,name):is) | used      = i:(getUsedInCondition2 summand is)
                                        | otherwise = getUsedInCondition2 summand is
   where
-    (params, c, a, aps, probChoices, g) = summand
+    (params, c, reward, a, aps, probChoices, g) = summand
     overwrittenBySum                    = elem name (map fst params)
     used                                = not(overwrittenBySum) && variableInExpression name c
 
@@ -236,7 +251,7 @@ getChangedLinear2 summand [] = []
 getChangedLinear2 summand ((i,name):is) | changedLinear && not(usedElsewhere) = i:(getChangedLinear2 summand is)
                                         | otherwise                           =   getChangedLinear2 summand is
   where
-    (params, c, a, aps, probChoices, g) = summand
+    (params, c, reward, a, aps, probChoices, g) = summand
     nextState                           = g!!i
     changedLinear                       = isLinear nextState name
     overwrittenBySum                    = elem name (map fst params)
@@ -257,7 +272,7 @@ getUsedInProbs2 summand [] = []
 getUsedInProbs2 summand ((i,name):is) | used      = i:(getUsedInProbs2 summand is)
                                        | otherwise = getUsedInProbs2 summand is
   where
-    (params, c, a, aps, probChoices, g) = summand
+    (params, c, reward, a, aps, probChoices, g) = summand
     overwrittenBySum                    = elem name (map fst params)
     overwrittenByProb                   = elem name (map fst3 probChoices)
     used                                = not(overwrittenBySum) && not(overwrittenByProb) && variableInExpressions name (map thd3 probChoices)

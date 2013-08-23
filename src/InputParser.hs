@@ -66,7 +66,7 @@ nrOfParallelProcesses (InitRenaming _ proc)      = nrOfParallelProcesses proc
 
 addReachCondition expression (lppe, initial) = (newLPPE, initial)
   where
-    newLPPE = addSummand lppe ([], expression, "reachConditionAction", [], [], map (\x -> Variable (fst x)) (getLPPEPars lppe))
+    newLPPE = addSummand lppe ([], expression, Variable "0", "reachConditionAction", [], [], map (\x -> Variable (fst x)) (getLPPEPars lppe))
 
 
 	
@@ -92,10 +92,10 @@ noUnguardedRecursion allProcs (p:ps) | unguardedRecursion = error("Error: Unguar
 
 reachableUnguarded :: [Process] -> [String] -> ProcessTerm -> [String]
 reachableUnguarded allProcs seen (LambdaPrefix _ _)        = []
-reachableUnguarded allProcs seen (ActionPrefix _ _ _ rhs)  = []
+reachableUnguarded allProcs seen (ActionPrefix _ _ _ _ rhs)  = []
 reachableUnguarded allProcs seen (Sum _ _ rhs)             = reachableUnguarded allProcs seen rhs
 reachableUnguarded allProcs seen (Implication _ rhs)       = reachableUnguarded allProcs seen rhs
-reachableUnguarded allProcs seen (ActionPrefix2 _ _ nexts) = []
+reachableUnguarded allProcs seen (ActionPrefix2 _ _ _ nexts) = []
 reachableUnguarded allProcs seen (Plus rhss)               = concat (map (reachableUnguarded allProcs seen) rhss)
 reachableUnguarded allProcs seen (ProcessInstance name _)    
   | elem name seen = []
@@ -181,8 +181,8 @@ checkRates (Sum _ _ rhs)            = checkRates rhs
 checkRates (Plus rhss)              = and [checkRates rhs | rhs <- rhss]
 checkRates (LambdaPrefix e rhs)     = error ("Error: PA with rate: " ++ show e ++ ". Either use the -ma option, or remove the rate.") 
 checkRates (Implication _ rhs)      = checkRates rhs
-checkRates (ActionPrefix _ _ _ rhs) = checkRates rhs
-checkRates (ActionPrefix2 _ _ probdefs) = and [checkRates (snd pd) | pd <- probdefs]
+checkRates (ActionPrefix _ _ _ _ rhs) = checkRates rhs
+checkRates (ActionPrefix2 _ _ _ probdefs) = and [checkRates (snd pd) | pd <- probdefs]
 	                  
 applyConstants [] constants = []
 applyConstants ((DataRangeType name from to):rest) constants = (DataRangeType name newFrom newTo):(applyConstants rest constants)
@@ -316,9 +316,9 @@ encodeMA (Process name pars rhs) = Process name pars (encodeProcessTerm rhs)
 
 encodeProcessTerm (Plus rs)                     = Plus (map encodeProcessTerm rs)
 encodeProcessTerm (Implication c rhs)           = Implication c (encodeProcessTerm rhs)
-encodeProcessTerm (LambdaPrefix l rhs)          = ActionPrefix "rate" [l] [("i0", TypeRange 1 1, (Variable "1"))] (encodeProcessTerm rhs)
+encodeProcessTerm (LambdaPrefix l rhs)          = ActionPrefix (Variable "0") "rate" [l] [("i0", TypeRange 1 1, (Variable "1"))] (encodeProcessTerm rhs)
 encodeProcessTerm (Sum var typ rhs)             = Sum var typ (encodeProcessTerm rhs)
-encodeProcessTerm (ActionPrefix a aps probs rh) = ActionPrefix a aps probs (encodeProcessTerm rh)
+encodeProcessTerm (ActionPrefix reward a aps probs rh) = ActionPrefix reward a aps probs (encodeProcessTerm rh)
 encodeProcessTerm (ProcessInstance name pars)   = ProcessInstance name pars
 
 substituteConstantsInConstants :: Constants -> Constants
@@ -343,7 +343,7 @@ substituteConstantsInProcessTerm functions subs (LambdaPrefix l rhs) = LambdaPre
 substituteConstantsInProcessTerm functions subs (Sum var typ rhs)   = Sum var typNew (substituteConstantsInProcessTerm functions subs rhs)
   where
     typNew = substituteConstantsInType functions subs typ
-substituteConstantsInProcessTerm functions subs (ActionPrefix a aps probs rhs) = ActionPrefix aNew newAps newProbs (substituteConstantsInProcessTerm functions subs rhs)
+substituteConstantsInProcessTerm functions subs (ActionPrefix reward a aps probs rhs) = ActionPrefix newReward aNew newAps newProbs (substituteConstantsInProcessTerm functions subs rhs)
     where
       expression = (takeWhile (/= '}') (drop 1 (dropWhile (/= '{') a)))
       parsedExpressions_ = ParserExpressionsGlobals.parseExpression expression 1
@@ -351,6 +351,7 @@ substituteConstantsInProcessTerm functions subs (ActionPrefix a aps probs rhs) =
       newExpressions = [(substituteInExpression subs f,substituteInExpression subs t) | (f,t) <- parsedExpressions]
       aNew_    = (takeWhile (/= '{') a) ++ "{" ++ printExpressions newExpressions ++ "}"	
       aNew     = if elem '{' a then aNew_ else a
+      newReward = substituteInExpression subs reward
       newAps   = map (substituteInExpression subs) aps
       newProbs = [(v, substituteConstantsInType functions subs t, substituteInExpression subs f) | (v,t,f) <- probs]
 substituteConstantsInProcessTerm functions subs (ProcessInstance name pars) = ProcessInstance name (map (substituteInExpression subs) pars)
@@ -377,9 +378,9 @@ addGlobals (LPPE name params summands, initial) dataspec ((var,typ,value):gs) = 
     newSummands = map (addGlobalToNextStates var) summands
 
 addGlobalToNextStates :: Variable -> PSummand -> PSummand
-addGlobalToNextStates var (params, c, a, aps, prob, g) | a == "setGlobal" && length aps == 2 && (getGlobalName (aps!!0) == var)= (params, c, "tau", [], prob, g ++ [aps!!1])
-                                                       | elem '{' a && elem var (map fst parsedExpressions)            = if (length (nub newValues) > 1) then error("Assigned a new value for global variable " ++ var ++ " more than once at the same time (maybe due to communicating actions): " ++ show newValues) else (params, c, a, aps, prob, g ++ [newValues!!0])
-                                                       | otherwise                                                     = (params, c, a, aps, prob, g ++ [Variable var])
+addGlobalToNextStates var (params, c, reward, a, aps, prob, g) | a == "setGlobal" && length aps == 2 && (getGlobalName (aps!!0) == var)= (params, c, reward, "tau", [], prob, g ++ [aps!!1])
+                                                       | elem '{' a && elem var (map fst parsedExpressions)            = if (length (nub newValues) > 1) then error("Assigned a new value for global variable " ++ var ++ " more than once at the same time (maybe due to communicating actions): " ++ show newValues) else (params, c, reward, a, aps, prob, g ++ [newValues!!0])
+                                                       | otherwise                                                     = (params, c, reward, a, aps, prob, g ++ [Variable var])
   where
     expression = (takeWhile (/= '}') (drop 1 (dropWhile (/= '{') a)))
     parsedExpressions_ = ParserExpressionsGlobals.parseExpression expression 1
@@ -392,4 +393,4 @@ getGlobalName (Variable var) = var
 getGlobalName (Function "concat" [Variable v1,Variable v2]) = v1 ++ v2
 getGlobalName other                                             = error("Could not parse global update " ++ show other)
 
-removeGlobalSuffixes (params, c, a, aps, prob, g) = (params, c, takeWhile (/= '{') a, aps, prob, g)
+removeGlobalSuffixes (params, c, reward, a, aps, prob, g) = (params, c, reward, takeWhile (/= '{') a, aps, prob, g)

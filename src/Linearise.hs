@@ -24,7 +24,7 @@ makeSummand :: [Char] -> ProcessTerm -> [PSummand]
 makeSummand pc (Sum var typ rhs)              = map (addSummation [(var, typ)]) (makeSummand pc rhs) 
 makeSummand pc (Implication cond rhs)         | correctSummations rhs cond = map (addImplication cond) (makeSummand pc rhs)
 makeSummand pc (Plus rhss)                    = concat (map (makeSummand pc) rhss)
-makeSummand pc (ActionPrefix a aps probs rhs) = [([], Function "eq" [Variable "pc", Variable pc], a, aps, probs, nextState)]
+makeSummand pc (ActionPrefix reward a aps probs rhs) = [([], Function "eq" [Variable "pc", Variable pc], reward, a, aps, probs, nextState)]
   where
     (ProcessInstance name actualPars) = rhs
     actualPars2 = (Variable (tail name)):actualPars
@@ -47,7 +47,7 @@ correctSummations rhs (Function f pars) = and [correctSummations rhs p | p <- pa
 -- (to make sure that summations and implications are not erroneously interchanged.)
 correctRHS :: String -> ProcessTerm -> Bool
 correctRHS d (ProcessInstance name pars)       = True
-correctRHS d (ActionPrefix act pars probs rhs) = True
+correctRHS d (ActionPrefix reward act pars probs rhs) = True
 correctRHS d (Implication cond rhs)            = correctRHS d rhs
 correctRHS d (Plus rhss)                       = and (map (correctRHS d) rhss)
 correctRHS d (Sum v typ rhs) | d == v          = error("Error: Linearisation failed.\nIt tried to interchange a summation and an implication which both contained the same variable name.\nPlease rename variable " ++ d ++ " in sum(" ++ v ++ ":" ++ printType typ ++ ", ...) to something that is not already a global variable.")

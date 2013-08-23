@@ -55,8 +55,8 @@ summandIsConfluent dataspec strong usageInSummands restrictedUsage restrictedCha
 -- It checks whether the summands are either never enabled at the same time,
 -- or are completely independent, or are the same and both yield a single confluent transition.
 confluentPair :: DataSpec -> Bool -> [(Int, [Int])] -> [(Int, [Int])] -> [(Int, [Int])] -> [(Int, [Int])] -> LPPE -> TypeMapping -> (Int, PSummand) -> [String] -> (Int, PSummand) -> Bool
-confluentPair dataspec strong usageInSummands restrictedUsage restrictedChanged changedUnchanged lppe mapping (i, (params1, c1, a1, aps1, probChoices1, g1)) reachActions
- 	                                                                           (j, (params2, c2, a2, aps2, probChoices2, g2)) = result
+confluentPair dataspec strong usageInSummands restrictedUsage restrictedChanged changedUnchanged lppe mapping (i, (params1, c1, reward1, a1, aps1, probChoices1, g1)) reachActions
+ 	                                                                           (j, (params2, c2, reward2, a2, aps2, probChoices2, g2)) = result
   where
     pars            = getLPPEPars lppe
     disjoint        = if (strong) then neverBothEnabledPairs dataspec c1 c2 (mapping ++ params1 ++ params2) (mapping ++ params1 ++ params2) 
@@ -64,14 +64,16 @@ confluentPair dataspec strong usageInSummands restrictedUsage restrictedChanged 
 	                  else neverBothEnabled dataspec c1 c2 [(v,t,getValues dataspec t) | (v,t) <- (mapping ++ params1 ++ params2)] 
     changedUnchangedInFirst = [used | (sumNr,used) <- changedUnchanged, sumNr == i]!!0
     changedUnchangedInSecond = [used | (sumNr,used) <- changedUnchanged, sumNr == j	]!!0
-    changedInFirst  = [v | v <- getChangedInNextStateNums (params1, c1, a1, aps1, probChoices1, g1) (zip [0..length(pars) - 1] (map fst pars)), not (elem v changedUnchangedInFirst)]
-    changedInSecond = [v | v <- getChangedInNextStateNums (params2, c2, a2, aps2, probChoices2, g2) (zip [0..length(pars) - 1] (map fst pars)), not (elem v changedUnchangedInSecond)]
+    changedInFirst  = [v | v <- getChangedInNextStateNums (params1, c1, reward1, a1, aps1, probChoices1, g1) (zip [0..length(pars) - 1] (map fst pars)), not (elem v changedUnchangedInFirst)]
+    changedInSecond = [v | v <- getChangedInNextStateNums (params2, c2, reward1, a2, aps2, probChoices2, g2) (zip [0..length(pars) - 1] (map fst pars)), not (elem v changedUnchangedInSecond)]
     usedInFirst     = [used | (sumNr,used) <- usageInSummands, sumNr == i]!!0 
     usedInSecond    = [used | (sumNr,used) <- usageInSummands, sumNr == j]!!0
     usedInConditionFirst  = getUsedInCondition lppe i
     usedInConditionSecond = getUsedInCondition lppe j
     usedInActionFirst  = getUsedInAction lppe i
     usedInActionSecond = getUsedInAction lppe j
+    usedInRewardFirst  = getUsedInReward lppe i
+    usedInRewardSecond = getUsedInReward lppe j
     usedInProbsFirst  = getUsedInProbs lppe i
     usedInProbsSecond = getUsedInProbs lppe j
     usedInNextFirst = getUsedInNext lppe i
@@ -87,8 +89,8 @@ confluentPair dataspec strong usageInSummands restrictedUsage restrictedChanged 
     samesummand     = i == j && a1 == "tau" && params1 == [] && uniqueTarget
     independent2    = and [not (elem v usedInConditionSecond) || (elem v restrictedUsedInSecond && elem v restrictedChangedInFirst) | v <- changedInFirst] &&
                       and [not (elem v usedInConditionFirst)  || (elem v restrictedUsedInFirst && elem v restrictedChangedInSecond) | v <- changedInSecond] && 
-                      (changedInFirst  \\ (usedInActionSecond ++ usedInProbsSecond) == changedInFirst) && 
-                      (changedInSecond \\ (usedInActionFirst  ++ usedInProbsFirst)  == changedInSecond) &&
+                      (changedInFirst  \\ (usedInActionSecond ++ usedInProbsSecond ++ usedInRewardSecond) == changedInFirst) && 
+                      (changedInSecond \\ (usedInActionFirst  ++ usedInProbsFirst ++ usedInRewardFirst)  == changedInSecond) &&
                       and [not (elem v usedInNextSecond) || (elem v changedInNextFirstLinear && elem v changedInNextSecondLinear) | v <- changedInFirst] &&
                       and [not (elem v usedInNextFirst) || (elem v changedInNextFirstLinear && elem v changedInNextSecondLinear) | v <- changedInSecond]
 

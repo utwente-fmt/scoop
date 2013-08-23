@@ -31,7 +31,7 @@ removeUnnecessaryRates2 ((MSummand m):rest) actionSummands | rateSummandEnabled 
 -- enabled at the same time. To check that, we see if we can find an interactive
 -- summand whose condition is implied by the condition of the Markovian summand.
 rateSummandEnabled (MSummand (params, c, lambda, g)) [] = True
-rateSummandEnabled (MSummand (params, c, lambda, g)) ((params2, c2, a, aps, probChoices, g2):rest) 
+rateSummandEnabled (MSummand (params, c, lambda, g)) ((params2, c2, reward2, a, aps, probChoices, g2):rest) 
   | conditionImplies c c2 = False
   | otherwise             = rateSummandEnabled (MSummand (params, c, lambda, g)) rest
 
