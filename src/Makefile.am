@@ -18,7 +18,7 @@ GHC_SCOOP_SHARED = -osuf dyn_o -hisuf dyn_hi -dynamic -fPIC $(GHC_SCOOP)
 
 .PHONY: scoop libscoop.so
 
-scoop:
+scoop$(EXEEXT):
 	ghc --make $(GHC_SCOOP_STATIC) -o scoop ${top_srcdir}/src/scoop.hs
 
 %.hs: %.y
