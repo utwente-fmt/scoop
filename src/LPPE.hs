@@ -386,7 +386,8 @@ merge :: PSummand -> PSummand -> Action -> [PSummand]
 merge (params1, c1, reward1, a1, aps1, probChoices1, g1) (params2, c2, reward2, a2, aps2, probChoices2, g2) action = result
      where
         apsEqual = [Function "eq" [a,b] | (a,b) <- zip aps1 aps2]
-        result   = [(params1 ++ params2, Function "and" ([c1, c2] ++ apsEqual), Function "plus" [reward1, reward2], action, aps1, probChoices1 ++ probChoices2, g1 ++ g2)]
+        newReward = if reward1 == Variable "0" && reward2 == Variable "0" then Variable "0" else Function "plus" [reward1, reward2]
+        result   = [(params1 ++ params2, Function "and" ([c1, c2] ++ apsEqual), newReward, action, aps1, probChoices1 ++ probChoices2, g1 ++ g2)]
 
 -- This function creates a communication function based on a list of 
 -- (action, action,action) pairs. It checks whether the inputs x and y
@@ -397,7 +398,6 @@ createCommFunction x y ((a,b,c):rest) | match      = c
                                       | otherwise  = createCommFunction x y rest 
   where
     match = (x == a && y == b) || (x == b && y == a)
-
 
 -------------------------------------------------------------
 -- Functions to check whether a process is already in LPPE --

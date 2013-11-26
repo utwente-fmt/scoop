@@ -32,7 +32,7 @@ import DeadVariable
 import Control.Monad
 import Usage
 
-type ScoopSpec = (PSpecification,[String])
+type ScoopSpec = (PSpecification,[String],[(Expression, Expression)])
 
 load_prcrl :: CString -> StablePtr [(String,String)] -> IO (StablePtr ScoopSpec)
 load_prcrl cname cconst = do load_common cname cconst False
@@ -48,9 +48,10 @@ load_common cname cconst mapa = do
   input <- hGetContents inFile
   const <- deRefStablePtr cconst
   let constants = [(var,Variable val)|(var,val)<-const]
-  let (basicSpec, actiontypes, untilformula,reach) = parseInput mapa False False False constants input
+  let (basicSpec, actiontypes, untilformula,reach,state_rewards) = parseInput mapa False False False constants input
 --  putStrLn (show reach)
 --  putStrLn (show (getDataSpec basicSpec))
+  putStrLn (show state_rewards)
   sequence_
     [ do withCString action (\cs -> report_reach cs)
     | action <- reach ]
@@ -62,7 +63,7 @@ load_common cname cconst mapa = do
 --  let confluents_ = getConfluentSummands specification True [] 
 --  putStrLn (show confluents_)
   hClose inFile
-  newStablePtr (specification,reach)
+  newStablePtr (specification,reach,state_rewards)
 
 const_empty = newStablePtr []
 
@@ -75,13 +76,13 @@ const_put old var val = do
     newStablePtr new
 
 get_confluent_summands spec = do
-  (specification,reach) <- deRefStablePtr spec
+  (specification,reach,_) <- deRefStablePtr spec
   let confluents = getConfluentSummands specification False reach
 --  putStrLn (show confluents)
   newStablePtr confluents
   
 get_diamond_summands spec = do
-  (specification,reach) <- deRefStablePtr spec
+  (specification,reach,_) <- deRefStablePtr spec
   let confluents = getConfluentSummands specification False []
 --  putStrLn (show confluents)
   newStablePtr confluents
@@ -98,6 +99,9 @@ tail_conf lst = do
   ll <- deRefStablePtr lst
   freeStablePtr lst
   newStablePtr (tail ll)
+
+
+foreign export ccall prcrl_get_state_reward :: StablePtr ScoopSpec -> (Ptr Int32) -> (Ptr Int32) -> IO ()
 
 foreign export ccall get_confluent_summands :: StablePtr ScoopSpec -> IO (StablePtr [Int])
 
@@ -122,6 +126,8 @@ foreign export ccall prcrl_get_action :: StablePtr ScoopSpec -> CInt -> IO CStri
 foreign export ccall print_prcrl :: StablePtr ScoopSpec -> IO ()
 
 foreign export ccall prcrl_pars :: StablePtr ScoopSpec -> IO CInt
+
+foreign export ccall prcrl_rewards :: StablePtr ScoopSpec -> IO CInt
 
 foreign export ccall prcrl_summands :: StablePtr ScoopSpec -> IO CInt
 
@@ -155,14 +161,32 @@ foreign import ccall write_rate_label :: CString -> (Ptr Int32) -> IO ()
 
 foreign import ccall write_reward_label :: CString -> (Ptr Int32) -> IO ()
 
+
+prcrl_get_state_reward :: StablePtr ScoopSpec -> (Ptr Int32) -> (Ptr Int32) -> IO ()
+prcrl_get_state_reward sptr src lbl = do
+  (p_spec,_,rewards) <- deRefStablePtr sptr
+  let init = getInitialState p_spec
+  src_ptr <- newForeignPtr_ src
+  lbl_ptr <- newForeignPtr_ lbl
+  src_arr <- unsafeForeignPtrToStorableArray src_ptr (0,(length init)-1) :: IO (StorableArray Int Int32)
+  lbl_arr <- unsafeForeignPtrToStorableArray lbl_ptr (0,1) :: IO (StorableArray Int Int32)
+  src_list <- sequence
+            [do tmp <- readArray src_arr i
+                cs <- term_get_value (fromIntegral i) (fromIntegral tmp)
+                peekCString cs
+            | i <- [0 .. (length init)-1 ]]
+  let reward = computeReward p_spec src_list rewards
+  writeArray lbl_arr 0 (fromIntegral reward)
+  writeArray lbl_arr 1 1
+
 prcrl_explore :: StablePtr ScoopSpec -> (Ptr Int32) -> (Ptr Int32) -> (Ptr Int32) -> IO CInt
 prcrl_explore sptr src dst lbl = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   prcrl_explore_smds p_spec (getPSummands (getLPPE p_spec)) src dst lbl
 
 prcrl_explore_long :: StablePtr ScoopSpec -> CInt -> (Ptr Int32) -> (Ptr Int32) -> (Ptr Int32) -> IO CInt
 prcrl_explore_long sptr smd src dst lbl = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   prcrl_explore_smds p_spec [getPSummand (getLPPE p_spec) (fromIntegral smd)] src dst lbl
 
 prcrl_explore_smds :: PSpecification -> [PSummand] -> (Ptr Int32) -> (Ptr Int32) -> (Ptr Int32) -> IO CInt
@@ -219,7 +243,7 @@ prcrl_explore_smds p_spec smds src dst c_lbl = do
 
 prcrl_get_init :: StablePtr ScoopSpec -> (Ptr Int32) -> IO ()
 prcrl_get_init sptr ptr = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
   let init = getInitialState p_spec
   fptr <- newForeignPtr_ ptr
@@ -236,7 +260,7 @@ prcrl_get_init sptr ptr = do
 --  writeArray arr 1 64
 
 prcrl_is_used sptr smd idx = do
-    (p_spec,_) <- deRefStablePtr sptr
+    (p_spec,_,_) <- deRefStablePtr sptr
     let lppe = getLPPE p_spec
     let pars = getLPPEPars lppe
     let (v,_) =  pars !! (fromIntegral idx)
@@ -246,7 +270,7 @@ prcrl_is_used sptr smd idx = do
     return (if (used || changed) then 1 else 0)
 
 prcrl_par_name sptr idx = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
   let pars = getLPPEPars lppe
   let (v,t) =  pars !! (fromIntegral idx)
@@ -254,14 +278,14 @@ prcrl_par_name sptr idx = do
   newCString v
   
 prcrl_get_action sptr smd = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
   let smds = getPSummands lppe
   let v = getAction (smds !! (fromIntegral smd))
   newCString v
 
 prcrl_par_type sptr idx = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
   let pars = getLPPEPars lppe
   let (v,t) =  pars !! (fromIntegral idx)
@@ -271,17 +295,23 @@ prcrl_par_type sptr idx = do
  where
    f v (TypeName x) = x
    f v _ = v ++ "_t"
-
+   
+prcrl_pars :: StablePtr ScoopSpec -> IO CInt
 prcrl_pars sptr = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
   let pars = getLPPEPars lppe
   let init = getInitialState p_spec
 --  putStrLn (show init)
   return (fromIntegral (length pars))
-  
+ 
+prcrl_rewards :: StablePtr ScoopSpec -> IO CInt
+prcrl_rewards sptr = do
+  (_,_,rewards) <- deRefStablePtr sptr
+  return (fromIntegral (length rewards))
+
 prcrl_summands sptr = do
-  (p_spec,_) <- deRefStablePtr sptr
+  (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
   let smds = getPSummands lppe
   return (fromIntegral (length smds))
@@ -294,7 +324,7 @@ createmap p_spec state = zip (Data.List.map fst params) state
 
 print_prcrl :: StablePtr ScoopSpec -> IO ()
 print_prcrl sptr = do
-  (ptr,_) <- deRefStablePtr sptr
+  (ptr,_,_) <- deRefStablePtr sptr
   print (LPPEShowPRCRL ptr)
   putStrLn "bye"
 

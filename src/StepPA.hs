@@ -101,3 +101,11 @@ updateMapping ((key,value):mapping) v newVal | key == v  = ((v,newVal):mapping)
 --                                                | otherwise = ((key,sort,value):(updateMapping mapping (v,t) newVal))
 
 
+computeReward :: PSpecification -> State -> [(Expression, Expression)] -> Int
+computeReward _ state [] = 0
+computeReward (lppe,initial,dataspec) state ((c,r):rest)
+  = (if (evalExpr functions mapping c == "T") then parseInteger (evalExpr functions mapping r) else 0) + computeReward (lppe, initial, dataspec) state rest
+  where
+    pars = map fst (getLPPEPars lppe)
+    mapping = [(pars!!i, state!!i) | i <- [0.. length pars - 1]]
+    functions = thd3 dataspec

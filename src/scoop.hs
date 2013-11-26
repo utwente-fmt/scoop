@@ -6,6 +6,7 @@ import LPPE
 import MLPPE
 import ToPA
 import ToAUT
+import StepPA
 import ToTrans
 import Expressions
 import ToPRISM
@@ -25,7 +26,7 @@ import Data.List
 main = do
   args <- getArgs
   input <- hGetContents stdin
-
+  putStrLn "SCOOP (last changed on 24 november 2013)"
   -- Parsing the command-line parameters.
   let flags      = ["-conf", "-dead", "-mlppe", "-keeprates", "-maxprogress", "-divergence", "-ma", "-pa", "-mapa", "-imca",
                     "-checkuntil", "-cadp", "-verbose", "-trans", "-lppe", "-size", "-prism", "-aut", "-visited", "-noprob",
@@ -92,7 +93,7 @@ main = do
   when (verbose)       $ putStrLn ("Dead variable reduction: " ++ show dead ++ "\n")
 
   -- Parsing the input, and doing all the relevant transformations for prCRL mode.
-  let (basicSpec, actiontypes, untilformula,reach) = (parseInput ma sharedActions False False constants) input
+  let (basicSpec, actiontypes, untilformula,reach,stateRewards) = (parseInput ma sharedActions False False constants) input
   let reachNames                                   = [takeWhile (/= '(') r | r <- reach]
   let standardTransformations                      = if nobasics then id else simplify . sumelm . simplify . constelm . sumelm
   let transformations                              = standardTransformations . 
@@ -165,7 +166,10 @@ main = do
 
   when (ma && verbose)                 $ putStrLn ("Number of parameters: " ++ show (getNrParamsM specificationM))
   when (ma && verbose)                 $ putStrLn ("MLPPE size: " ++ show (getMLPPESize specificationM))
+  let stateRewardsString = infixString (Data.List.map (\x -> "- Reward " ++ (show (snd x)) ++ " for every state satistying " ++ (show (fst x))) stateRewards) "\n"
+  when (ma && verbose)                 $ putStrLn ("State rewards: " ++ if stateRewardsString == "" then "none" else "\n" ++ stateRewardsString ++ "\n")
 
+--  putStrLn ("Reward in state [0]: " ++ (show (computeReward specification ["0","0"] stateRewards)))
 
   when (ma && (getNrParamsM specificationM) >= 0 && False) $ putStrLn "Blaat"
   when (pa && (getNrParams specification) >= 0 && False) $ putStrLn "Blaat"

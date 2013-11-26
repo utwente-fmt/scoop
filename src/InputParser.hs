@@ -22,8 +22,9 @@ import Data.List
 import Debug.Trace
 import MLPPE 
 
-type Constants = [(String, Expression)]
-type Globals   = [(Variable, Type, Expression)]
+type Constants    = [(String, Expression)]
+type Globals      = [(Variable, Type, Expression)]
+type StateRewards = [(Expression, Expression)]
 
 -----------------------
 -- Parsing the input --
@@ -31,12 +32,12 @@ type Globals   = [(Variable, Type, Expression)]
 
 -- This function takes a prCRL specification, and returns the corresponding
 -- LPPE including its initial state.
-parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String])
-parseInput isMA sharedActions mergeTransitions prismComposition constants1 input | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula,reachNew)
+parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
+parseInput isMA sharedActions mergeTransitions prismComposition constants1 input | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
                                                               | otherwise            = error("Error in specification.")
   where
     input2                 = input -- removeLineBreaks input
-    (processes, initials, nocomm, reach, reachCondition, hiding,encapsulation, renaming, communication, constants, datatypes, functions, actiontypes, untilformula, globals)  = parseProcesses constants1 dataspec input2 isMA
+    (processes, initials, nocomm, reach, reachCondition, stateRewards, hiding,encapsulation, renaming, communication, constants, datatypes, functions, actiontypes, untilformula, globals)  = parseProcesses constants1 dataspec input2 isMA
     dataspec               = (datatypes ++ builtInTypes, [], functions ++ builtInFunctions)
     system_                = fst (makeLPPE 1 (nrOfParallelProcesses initials > 1) sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes initials)
     system                 = if (prismComposition) then fixGlobalVariables system_ else system_
@@ -134,10 +135,10 @@ checkType a b = error("Error in function checkType: " ++ show a ++ ", " ++ show 
 findTypesInLPPE (LPPE name params summands) = map snd params
 
 
-parseProcesses :: Constants -> DataSpec -> String -> Bool -> ([Process], InitialProcessDefinition, [String], [String], Expression, [String], [String], [(String, String)], [(Action,Action,Action)], Constants, [DataType], [FunctionDef], [(String, Type)], [String], Globals)
+parseProcesses :: Constants -> DataSpec -> String -> Bool -> ([Process], InitialProcessDefinition, [String], [String], Expression, StateRewards, [String], [String], [(String, String)], [(Action,Action,Action)], Constants, [DataType], [FunctionDef], [(String, Type)], [String], Globals)
 parseProcesses commandlineConstants dataspec processesString isMA                  
     | not(correctParse)                           = error(errorMessage)
-    | correctParse && correctInput && (isMA || paWithRates) = (processes5, initialProcesses, nocomm, reach, reachCondition, hiding, encapsulation, renaming, communications, constants, types, functions, actiontypes, untilformula, globals)
+    | correctParse && correctInput && (isMA || paWithRates) = (processes5, initialProcesses, nocomm, reach, reachCondition, stateRewards, hiding, encapsulation, renaming, communications, constants, types, functions, actiontypes, untilformula, globals)
     | otherwise                                   = error(errorMessage)
   where
     parsedInput_                 = parse processesString 1
@@ -161,6 +162,7 @@ parseProcesses commandlineConstants dataspec processesString isMA
     nocomm                       = "rate":(getNoCommActions datapartnew)
     reach                        = getReachActions datapartnew
     reachCondition               = substituteInExpression constants (getReachCondition datapartnew)
+    stateRewards                 = map (\x -> (substituteInExpression constants (fst x), substituteInExpression constants (snd x))) (getStateRewards datapartnew)
     globals                      = getGlobals functions constants datapartnew
     renaming                     = getRenamedActions datapartnew
     encapsulation                = getEncapsulatedActions datapartnew
@@ -214,6 +216,10 @@ getReachActions (_:rest)                             = getReachActions rest
 getReachCondition []                                   = Variable "T"
 getReachCondition ((DataReachCondition e):rest) = Function "and" [e, getReachCondition rest]
 getReachCondition (_:rest)                             = getReachCondition rest
+
+getStateRewards []                                   = []
+getStateRewards ((DataStateReward state reward):rest) = ((state, reward)):(getStateRewards rest)
+getStateRewards (_:rest)                             = getStateRewards rest
 
 getGlobals _ _ []                                         = []
 getGlobals functions constants ((DataGlobal (name, typ) value):rest) = (name, substituteConstantsInType functions constants typ, Variable (evalExpr functions [] value)):(getGlobals functions constants rest)
