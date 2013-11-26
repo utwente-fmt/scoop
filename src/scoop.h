@@ -17,6 +17,10 @@ void* scoop_load_mapa(const char* name);
 
 void* scoop_load_prcrl(const char* name);
 
+extern void prcrl_get_state_reward(scoop_model_t model, uint32_t* state, uint32_t* reward);
+
+extern uint32_t prcrl_rewards(scoop_model_t model);
+
 #define HsStablePtr void*
 #define HsPtr void*
 #define HsInt32 int32_t
