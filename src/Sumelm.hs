@@ -15,15 +15,15 @@ import Simplify
 sumelm :: PSpecification -> PSpecification
 sumelm ((LPPE name pars summands), initialState, dataspec) = (LPPE name pars newSummands, initialState, dataspec)
   where
-    newSummands = map (\x -> sumelmPSummand x (map fst (getLocalPars x))) summands
+    newSummands = map (\x -> sumelmPSummand x (map fst (getLocalPars x)) dataspec) summands
 
 -- This function removes unnecessary summations from a summand.
-sumelmPSummand :: PSummand -> [Variable] -> PSummand
-sumelmPSummand s [] = s
-sumelmPSummand (params, c, reward, a, aps, probChoices, g) (var:vars) 
-  | variableNotUsed = sumelmPSummand (paramsNew, c, reward, a, aps, probChoices, g) vars
-  | onlyOneValue    = sumelmPSummand (paramsNew, cNew, rewardNew, a, apsNew, probChoices, gNew) vars
-  | otherwise       = sumelmPSummand (params, c, reward, a, aps, probChoices, g) vars
+sumelmPSummand :: PSummand -> [Variable] -> DataSpec -> PSummand
+sumelmPSummand s [] dataspec = s
+sumelmPSummand (params, c, reward, a, aps, probChoices, g) (var:vars) dataspec 
+  | variableNotUsed = sumelmPSummand (paramsNew, c, reward, a, aps, probChoices, g) vars dataspec
+  | onlyOneValue || singleton = sumelmPSummand (paramsNew, cNew, rewardNew, a, apsNew, probChoices, gNew) vars dataspec
+  | otherwise       = sumelmPSummand (params, c, reward, a, aps, probChoices, g) vars dataspec
   where
     paramsNew                = [(v,t) | (v,t) <- params, not (v == var)]
     variableNotUsed          = not(variableInExpression var c) && 
@@ -32,7 +32,10 @@ sumelmPSummand (params, c, reward, a, aps, probChoices, g) (var:vars)
                                not(variableInExpressions var g)
     value                    = possibleValueForConditionToBeTrue var c
     onlyOneValue             = value /= Undecided
-    UniqueValue uniqueChoice = value
+    typ                      = [t | (v,t) <- params, v == var]!!0
+    singleton                = length (getValues dataspec typ) == 1
+    UniqueValue uniqueChoic_ = value
+    uniqueChoice             = if onlyOneValue then uniqueChoic_ else (Variable ((getValues dataspec typ)!!0))
     cNew                     = substituteInExpression [(var, uniqueChoice)] c
     rewardNew                = substituteInExpression [(var, uniqueChoice)] reward
     apsNew                   = map (substituteInExpression [(var, uniqueChoice)]) aps
@@ -47,7 +50,7 @@ sumelmM ((MLPPE name pars summands), initialState, dataspec) = (MLPPE name pars 
 
 sumelmSummandM :: GeneralSummand -> DataSpec -> LocalPars -> GeneralSummand
 sumelmSummandM s _ [] = s
-sumelmSummandM (PSummand ps) _ lp = PSummand (sumelmPSummand ps (map fst lp))
+sumelmSummandM (PSummand ps) dataspec lp = PSummand (sumelmPSummand ps (map fst lp) dataspec)
 sumelmSummandM (MSummand (params, c, lambda, g)) dataspec ((var,typ):vars)
   | variableNotUsed        = sumelmSummandM (MSummand (paramsNew, c, Function "multiply" [Variable (show (length (getValues dataspec typ))), lambda], g)) dataspec vars
   | onlyOneValue           = sumelmSummandM (MSummand (paramsNew, cNew, lambdaNew, gNew)) dataspec vars

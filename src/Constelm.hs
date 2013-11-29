@@ -9,6 +9,7 @@ import LPPE
 import Simplify
 import Data.List
 import Usage
+import DataSpec
 
 -- This function takes a specification, detects which parameters are constant,
 -- substitutes the initial values for these parameters wherever they are used,
@@ -17,8 +18,10 @@ constelm :: PSpecification -> PSpecification
 constelm (lppe, initial, dataspec) = removeParametersFromLPPE (lppeReduced, initial, dataspec) (map fst constants)
   where
     parNames     = map fst (getLPPEPars lppe)
+    parTypes     = map snd (getLPPEPars lppe)
     allVariables = [(p,parNames!!p,i) | (p, i) <- (zip [0..length initial - 1] initial)]
-    constants    = [(p,i) | (p,s,i) <- (allVariables \\ (getNonConstants lppe allVariables))]
+    singletons   = [(p,parNames!!p,i) | (p, i) <- (zip [0..length initial - 1] initial), length (getValues dataspec (parTypes!!p)) == 1, (getValues dataspec (parTypes!!p)) /= ["empty"], (getValues dataspec (parTypes!!p)) /= ["nat"]]
+    constants    = [(p,i) | (p,s,i) <- (allVariables \\ ((getNonConstants lppe allVariables) \\ singletons))]
     lppeReduced  = substituteInLPPE lppe constants
 
 -- This function takes an LPPE, a list of all parameters of that LPPE in the form (parNr, parName, initValue)

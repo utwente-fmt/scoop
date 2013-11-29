@@ -9,6 +9,9 @@ import Data.Ratio
 import Data.List
 import Debug.Trace
 import Data.HashMap
+import InputParser
+import Auxiliary
+import Expressions
 
 -------------------------------
 -- Translation to AUT format --
@@ -38,7 +41,8 @@ printTransitionsNonProb cadp [] = []
 printTransitionsNonProb cadp ((from, label, to):ts) = "(" ++ show from ++ ",\"" ++ (if cadp then (if label == "tau" then "i" else changeCommas label) else label) ++ "\"," ++ show to ++ ")\n" ++ (printTransitionsNonProb cadp ts)
 
 toIMCA :: [String] -> Bool -> PSpecification -> Bool -> ConfluentSummands -> Bool -> Bool -> Bool -> Bool -> Bool -> Bool -> Bool -> [String] -> OutputString
-toIMCA reach ignorecycles spec cadp confl checkConfluence checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions = OutputString ("#INITIALS\ns0\n#GOALS\n" ++ goalStates ++ "#TRANSITIONS\n"  ++ transitionsOutput)
+toIMCA reach ignorecycles spec cadp confl checkConfluence checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
+ = OutputString ("#INITIALS\ns0\n#GOALS\n" ++ goalStates ++ "#TRANSITIONS\n"  ++ transitionsOutput)
     where
      (statespace,initial,_)     = getStateSpace ignorecycles spec confl checkConfluence False checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
      states                     = fst statespace
@@ -47,7 +51,7 @@ toIMCA reach ignorecycles spec cadp confl checkConfluence checkDTMC isMA removeR
      goalStates                 = concat [x ++ "\n" | x <- nub reachStates]
 
 printTransitionsIMC :: [(Int, String, EdgeLabel, [(Probability, Int)])] -> [String] -> ([Char], [String])
-printTransitionsIMC [] reachActions                                  = ([],[])
+printTransitionsIMC [] reachActions                                        = ([],[])
 printTransitionsIMC ((from, reward, label, ((prob,to):tos)):ts) reachActions = (imcTransitions, reach1 ++ reach2 ++ reach3) 
   where
     (transitions1, reach1, next) = printRates   from ((from, reward, label, ((prob,to):tos)):ts) reachActions

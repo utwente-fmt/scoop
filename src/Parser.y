@@ -20,7 +20,8 @@ data Item = DataActions [(String, ActionType)]
           | DataEncapsulation [String]   
           | DataNoCommunication [String]   
           | DataReach [String]   
-          | DataReachCondition Expression   
+          | DataReachCondition Expression
+          | DataStateReward Expression Expression
           | DataCommunication [(String, String, String)] 
           | DataConstant String Expression
           | DataEnumType String [String] 
@@ -130,6 +131,7 @@ failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
       nocomm          { TokenNoComm }
       reach           { TokenReach }
       reachCondition  { TokenReachCondition }
+      stateReward     { TokenStateReward }
       constant        { TokenConstant }
       formula         { TokenFormula }
       global          { TokenGlobal }
@@ -156,6 +158,7 @@ Item : hide     Strings                                        { DataHiding $2 }
      | nocomm   Strings                                        { DataNoCommunication $2 }
      | reach    StringsWithPars                                { DataReach $2 }
      | reachCondition Expression                               { DataReachCondition $2 }
+     | stateReward Expression '->' Expression                  { DataStateReward $2 $4 }
      | until    '[' String2 ']'                                { DataUntilFormula $3 }
      | formula  Expression                                     { DataFormula $2 }
      | constant string '=' Expression                          { DataConstant $2 $4 }
@@ -351,6 +354,7 @@ data Token = TokenSum
            | TokenNoComm
            | TokenReach
            | TokenReachCondition
+           | TokenStateReward
            | TokenConstant
            | TokenFormula
            | TokenType
@@ -408,6 +412,7 @@ instance Show Token where
      TokenNoComm -> "nocomm"
      TokenReach -> "reach"
      TokenReachCondition -> "reachCondition"
+     TokenStateReward -> "stateReward"
      TokenConstant -> "constant"
      TokenFormula -> "formula"
      TokenType -> "type"
@@ -509,7 +514,11 @@ lexer cont ('r':'e':'a':'c':'h':'\t':cs) = cont TokenReach ('\t':cs)
 lexer cont ('r':'e':'a':'c':'h':'C':'o':'n':'d':'i':'t':'i':'o':'n':' ':cs) = cont TokenReachCondition cs
 lexer cont ('r':'e':'a':'c':'h':'C':'o':'n':'d':'i':'t':'i':'o':'n':'\n':cs) = cont TokenReachCondition ('\n':cs)
 lexer cont ('r':'e':'a':'c':'h':'C':'o':'n':'d':'i':'t':'i':'o':'n':'\r':cs) = cont TokenReachCondition ('\r':cs)
-lexer cont ('r':'e':'a':'c':'h':'C':'o':'n':'d':'i':'t':'i':'o':'n':'\t':cs) = cont TokenReachCondition ('\t':cs)
+lexer cont ('r':'e':'a':'c':'h':'C':'o':'n':'d':'i':'t':'i':'o':'n':' ':cs) = cont TokenReachCondition cs
+lexer cont ('s':'t':'a':'t':'e':'R':'e':'w':'a':'r':'d':' ':cs) = cont TokenStateReward cs
+lexer cont ('s':'t':'a':'t':'e':'R':'e':'w':'a':'r':'d':'\n':cs) = cont TokenStateReward ('\n':cs)
+lexer cont ('s':'t':'a':'t':'e':'R':'e':'w':'a':'r':'d':'\r':cs) = cont TokenStateReward ('\r':cs)
+lexer cont ('s':'t':'a':'t':'e':'R':'e':'w':'a':'r':'d':' ':cs) = cont TokenStateReward cs
 lexer cont ('c':'o':'m':'m':' ':cs) = cont TokenComm cs
 lexer cont ('c':'o':'m':'m':'\n':cs) = cont TokenComm ('\n':cs)
 lexer cont ('c':'o':'m':'m':'\r':cs) = cont TokenComm ('\r':cs)
