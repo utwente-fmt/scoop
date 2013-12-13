@@ -177,7 +177,7 @@ changeToRepresentatives spec repr confluent (t:rest) storeReps reachActions = (n
     (newRest, newRepr2,visited2, visitedTrans2) = changeToRepresentatives spec newRepr1 confluent rest storeReps reachActions
 
 changeTransitionToRepresentatives :: PSpecification -> RepresentationMap -> ConfluentSummands -> Transition -> Bool -> [String] -> (Transition, RepresentationMap, Int, Int)
-changeTransitionToRepresentatives spec repr confluent (s,r,a,next) storeReps reachActions = ((newS, "0", a, newNext), newRepr2, visited, visitedTrans)
+changeTransitionToRepresentatives spec repr confluent (s,r,a,next) storeReps reachActions = ((newS, r, a, newNext), newRepr2, visited, visitedTrans)
   where
     newS     = s
     (newNext, newRepr2, visited, visitedTrans) = changeNextStateToRepresentatives spec repr confluent next storeReps reachActions
@@ -254,10 +254,10 @@ exploreNewState repr spec confluents v numbers low unexplored count reachActions
     -- Het onderstaande is zodat, in geval van een state met slechts 1 uitgaande tau-transitie, die ook als confluent gezien wordt
     transNonConfluent           = potentialBehaviour True spec confluents (getDataSpec spec) v mapping [summands!!i | i <- [0.. length summands - 1], not (elem i confluents)]
 --                                  ++ fakeConfluence
-    transNonConfluentInteractive = [(a,"0", b,c) | (a,r, b,c) <- transNonConfluent, take 4 b /= "rate"]
+    transNonConfluentInteractive = [(a,r, b,c) | (a,r, b,c) <- transNonConfluent, take 4 b /= "rate"]
     newstates                   = if (trans == [] && length transNonConfluentInteractive == 1 && 
 	                              length [(state,reward,label,[("1", next)]) | (state,reward, label,[("1", next)]) <- transNonConfluentInteractive, not (enablesObservableAction spec next reachActions && not(enablesObservableAction spec state reachActions))] == 1
-	                              && thd4 (transNonConfluentInteractive!!0) == "tau" && length (frt4 (transNonConfluentInteractive!!0)) == 1) 
+	                              && thd4 (transNonConfluentInteractive!!0) == "tau" && snd4 (transNonConfluentInteractive!!0) == "0" && length (frt4 (transNonConfluentInteractive!!0)) == 1) 
 	                              then concat [Data.List.map snd next | (s,r,a,next) <- transNonConfluentInteractive] 
 	                              else concat [Data.List.map snd next | (s,r,a,next) <- trans]   
     --newstates                   = concat [Data.List.map snd next | (s,a,next) <- trans]

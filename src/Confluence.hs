@@ -43,7 +43,7 @@ getConfluentSummands (lppe, init, dataspec) strong reachActions = result
 summandIsConfluent :: DataSpec -> Bool -> [(Int, [Int])] -> [(Int, [Int])] -> [(Int, [Int])] -> [(Int, [Int])] -> PSummand -> Int -> [(Int, PSummand)] -> TypeMapping -> LPPE -> [String] -> Bool
 summandIsConfluent dataspec strong usageInSummands restrictedUsage restrictedChanged changedUnchanged summand summandNr summands mapping lppe reachActions = istau && uniqueTarget && isConfluent
   where
-    istau        = getAction summand == "tau" && getActionPars summand == []
+    istau        = getAction summand == "tau" && getActionPars summand == [] && getReward summand == Variable "0"
     uniqueTarget = and (map (\x -> length (getValues dataspec x) == 1) (map snd3 (getProbChoices summand)))
     confluence   = map (confluentPair dataspec strong usageInSummands restrictedUsage restrictedChanged changedUnchanged lppe mapping (summandNr, summand) reachActions) summands
     isConfluent  = and confluence

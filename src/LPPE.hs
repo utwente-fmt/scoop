@@ -145,6 +145,10 @@ getPSummandNrs lppe = [0..length (getPSummands lppe) - 1]
 getAction :: PSummand -> Action
 getAction (params, c, reward, a, aps, probChoices, g) = a
 
+-- Provides the reward of a summand.
+getReward :: PSummand -> Expression
+getReward (params, c, reward, a, aps, probChoices, g) = reward
+
 -- Changes the action of a summand.
 setAction :: PSummand -> Action -> PSummand
 setAction (params, c, reward, a, aps, probChoices, g) aNew = (params, c, reward, aNew, aps, probChoices, g)

@@ -263,6 +263,8 @@ ProcessInstantiation : string '[' Expressions ']'                     { ProcessI
 
 
 Type         : string                                { TypeName $1 }
+             | Queue                                 { TypeName "Queue" }
+             | Nat                                   { TypeName "Nat" }
              | '{' Expression '..' Expression '}'    { TypeRangeExpressions $2 $4 }
 
 IndepProbs   : IndepProb                        { [$1] }

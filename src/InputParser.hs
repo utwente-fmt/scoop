@@ -115,7 +115,9 @@ correctInits (lppe, init) dataspec | not enoughInitials = error("Error: Number o
                                    | otherwise = error("Error: Initial value incorrect. Input " ++ fst (initials!!index) ++ " is not of type " ++ printType (snd (initials!!index))) 
   where
     initials = zip init (map snd (getLPPEPars lppe))
-    elements = [elem var (getValues dataspec typ) || (typ == TypeName "Queue" && and [elem v (concat (map snd (snd3 dataspec))) | v <- split var ';']) || (typ == TypeName "Nat" && isInteger var) | (var, typ) <- initials]
+    elements = [elem var (getValues dataspec typ) ||
+                (typ == TypeName "Queue" && and [elem v (concat (map snd (snd3 dataspec))) || isInteger v | v <- split var ';']) || 
+                (typ == TypeName "Nat" && isInteger var) | (var, typ) <- initials]
     enoughInitials = length init == length (getLPPEPars lppe) 
     result   = and elements 
     index    = [i | i <- [0..length elements - 1], elements!!i == False]!!0
