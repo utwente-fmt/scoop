@@ -5,6 +5,7 @@ EXTRA_DIST  = ParserExpressionsGlobals.hs Parser.hs ParserExpressions.hs ParserU
 
 if HAVE_HASHMAP
 bin_PROGRAMS = scoop
+scoop_SOURCES =
 endif
 
 BUILT_SOURCES  = ParserExpressionsGlobals.hs
