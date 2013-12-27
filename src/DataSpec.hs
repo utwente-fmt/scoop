@@ -18,7 +18,7 @@ builtInFunctions = []
 
 correctValue :: DataSpec -> String -> Type -> Bool
 correctValue dataspec value (TypeName "Nat")   = isInteger value
-correctValue dataspec value (TypeName "Queue") = and [elem v (concat (map snd (snd3 dataspec))) || isInteger v | v <- split value ';']
+correctValue dataspec value (TypeName "Queue") = and [elem v (concat (map snd (snd3 dataspec))) || isInteger v | v <- split value ';'] || trace("Warning: queue " ++ show value ++ " has unexpected values.") True
 correctValue dataspec value typ                = elem value (getValues dataspec typ)
 
 allValues :: Type -> [DataType] -> [String]

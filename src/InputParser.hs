@@ -112,6 +112,7 @@ validateData (lppe, init) (datatypes, _, functions) = valid
 correctInits :: PSystem -> DataSpec -> Bool
 correctInits (lppe, init) dataspec | not enoughInitials = error("Error: Number of initial values not correct.")
                                    | result    = True
+                                   | printType (snd (initials!!index)) == "Queue" = trace("Warning: Initial value potentially incorrect. Input " ++ fst (initials!!index) ++ " of type " ++ printType (snd (initials!!index)) ++ " has unexpected values.") True
                                    | otherwise = error("Error: Initial value incorrect. Input " ++ fst (initials!!index) ++ " is not of type " ++ printType (snd (initials!!index))) 
   where
     initials = zip init (map snd (getLPPEPars lppe))
