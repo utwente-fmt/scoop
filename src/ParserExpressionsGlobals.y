@@ -250,7 +250,7 @@ lexNumber cont cs = cont (TokenString var) rest
 
 getString [] = ("","")
 getString ('.':'.':cs) = ("", '.':'.':cs)
-getString (c:cs) | elem c "\n\t\r ',()&=*.<>+{}^:-!?/|\"[]" = ("", c:cs)
+getString (c:cs) | elem c "\n\t\r ',()&=*.<>@+{}^:-!?/|\"[]" = ("", c:cs)
                  | otherwise = (str,rest)
   where
     (s,r) = getString cs
@@ -259,7 +259,7 @@ getString (c:cs) | elem c "\n\t\r ',()&=*.<>+{}^:-!?/|\"[]" = ("", c:cs)
 
 getNumber [] = ("","")
 getNumber ('.':'.':cs) = ("", '.':'.':cs)
-getNumber (c:cs) | elem c "\n\t\r ',()&=*<>+_{}:-!?;/|\"[]" = ("", c:cs)
+getNumber (c:cs) | elem c "\n\t\r ',()&=*<>+_@{}:^-!?/|\"[]" = ("", c:cs)
                  | otherwise = (str,rest)
   where
     (s,r) = getNumber cs
