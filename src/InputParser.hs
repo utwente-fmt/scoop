@@ -33,7 +33,9 @@ type StateRewards = [(Expression, Expression)]
 -- This function takes a prCRL specification, and returns the corresponding
 -- LPPE including its initial state.
 parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
-parseInput isMA sharedActions mergeTransitions prismComposition constants1 input | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
+parseInput isMA sharedActions mergeTransitions prismComposition constants1 input 
+                                                              | not(isMA) && stateRewards /= [] = error("State rewards only allowed for use in combination with IMCA. Use the -ma flag to work with them.")   
+                                                              | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
                                                               | otherwise            = error("Error in specification.")
   where
     input2                 = input -- removeLineBreaks input
@@ -43,7 +45,8 @@ parseInput isMA sharedActions mergeTransitions prismComposition constants1 input
     system                 = if (prismComposition) then fixGlobalVariables system_ else system_
     system2a               = rename (hide (encapsulate system encapsulation) hiding) renaming
     system2_               = addGlobals system2a dataspec globals
-    system2                = if reachCondition == Variable "T" then system2_ else addReachCondition reachCondition system2_
+    system2__              = if reachCondition == Variable "T" then system2_ else addReachCondition reachCondition system2_
+    system2                = addStateRewards stateRewards system2__
     summands               = getPSummands (fst system2)
     reachNew               = if reachCondition == Variable "T" then reach else ("reachConditionAction":reach)
     pars                   = getLPPEPars (fst system2)
@@ -69,7 +72,10 @@ addReachCondition expression (lppe, initial) = (newLPPE, initial)
   where
     newLPPE = addSummand lppe ([], expression, Variable "0", "reachConditionAction", [], [], map (\x -> Variable (fst x)) (getLPPEPars lppe))
 
-
+addStateRewards [] (lppe, initial)                             = (lppe, initial)
+addStateRewards ((stateCondition, reward):rest) (lppe, initial) = (newLPPE, newInitial)
+  where
+    (newLPPE,newInitial) = addStateRewards rest ((addSummand lppe ([], stateCondition, Variable "0", "stateRewardAction", [reward], [], map (\x -> Variable (fst x)) (getLPPEPars lppe))), initial)
 	
 correctSumTypes [] = True
 correctSumTypes (t:ts) | t == TypeName "Queue" = error ("Cannot sum over type Queue")

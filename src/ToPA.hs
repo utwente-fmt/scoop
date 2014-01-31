@@ -43,7 +43,7 @@ getStatesAndTransitionsConfluence ignorecycles spec confluent checkConfluence ch
   where
     (statespace, initial, visited) = getStateSpace ignorecycles spec confluent checkConfluence checkVisited checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
     numberOfStates                 = size (fst statespace) 
-    numberOfTransitions            = length [t | t <- snd statespace, thd4 t /= "reachConditionAction"]
+    numberOfTransitions            = length [t | t <- snd statespace, thd4 t /= "reachConditionAction", take 17 (thd4 t) /= "stateRewardAction"]
 
 -- Given a system and a set of confluent summands,
 -- this function provides the unfolded state space.
@@ -107,7 +107,8 @@ getStateSpace2Visited spec (state:states) highest statespace repr visited conflu
 
 mergeTransitions :: [Transition] -> [Transition]
 mergeTransitions []                   = []
-mergeTransitions ((from,reward,label,to):ts) | take 5 label == "rate(" = (from, reward, "rate(" ++ totalRate ++ ")", to):newTS
+mergeTransitions ((from,reward,label,to):ts) | take 17 label == "stateRewardAction" = (from, reward, label,to):(mergeTransitions ts)
+                                             | take 5 label == "rate(" = (from, reward, "rate(" ++ totalRate ++ ")", to):newTS
 	                                         | otherwise               = (from, reward, label,to):newTS2
   where
     totalRate   = writeFraction (sum [getFraction (takeWhile (/= ')') (drop 5 l)) | (f,r,l,t) <- ((from,reward,label,to):ts), f == from, t == to, take 5 l == "rate("])
@@ -316,7 +317,7 @@ getNumberFromList ((v,i):rest) from | from == v = i
 
 hasTau :: [Transition] -> Bool
 hasTau [] = False
-hasTau ((from,reward,label,next):rest)  = (take 4 label /= "rate" && label /= "reachConditionAction") || hasTau rest
+hasTau ((from,reward,label,next):rest)  = (take 4 label /= "rate" && label /= "reachConditionAction" && take 17 label /= "stateRewardAction") || hasTau rest
 --hasTau ((from,label,next):rest)  = label == "tau" || hasTau rest
 
 removeRateTransitions :: [Transition] -> [Transition]

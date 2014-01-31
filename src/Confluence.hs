@@ -66,7 +66,7 @@ confluentPair dataspec strong usageInSummands restrictedUsage restrictedChanged 
     changedUnchangedInSecond = [used | (sumNr,used) <- changedUnchanged, sumNr == j	]!!0
     changedInFirst  = [v | v <- getChangedInNextStateNums (params1, c1, reward1, a1, aps1, probChoices1, g1) (zip [0..length(pars) - 1] (map fst pars)), not (elem v changedUnchangedInFirst)]
     changedInSecond = [v | v <- getChangedInNextStateNums (params2, c2, reward1, a2, aps2, probChoices2, g2) (zip [0..length(pars) - 1] (map fst pars)), not (elem v changedUnchangedInSecond)]
-    usedInFirst     = [used | (sumNr,used) <- usageInSummands, sumNr == i]!!0 
+    usedInFirst     = [used | (sumNr,used) <- usageInSummands, sumNr == i]!!0
     usedInSecond    = [used | (sumNr,used) <- usageInSummands, sumNr == j]!!0
     usedInConditionFirst  = getUsedInCondition lppe i
     usedInConditionSecond = getUsedInCondition lppe j
