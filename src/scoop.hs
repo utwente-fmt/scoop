@@ -26,7 +26,7 @@ import Data.List
 main = do
   args <- getArgs
   input <- hGetContents stdin
-  hPutStrLn stderr "SCOOP (last changed on 31 January 2013)"
+  hPutStrLn stderr "SCOOP (last changed on 31 January 2014)"
   -- Parsing the command-line parameters.
   let flags      = ["-conf", "-dead", "-mlppe", "-keeprates", "-maxprogress", "-divergence", "-ma", "-pa", "-mapa", "-imca",
                     "-checkuntil", "-cadp", "-verbose", "-trans", "-lppe", "-size", "-prism", "-aut", "-visited", "-noprob",

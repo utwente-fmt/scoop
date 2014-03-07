@@ -39,7 +39,7 @@ type Reward = Expression
 data ProcessTerm  = ActionPrefix     Reward Action ActionPars Probabilities ProcessTerm
                   | ActionPrefix2    Reward Action ActionPars [ProbDef]
                   | Implication      Expression ProcessTerm
-                  | LambdaPrefix     Expression ProcessTerm
+                  | LambdaPrefix     Reward Expression ProcessTerm
                   | Plus             [ProcessTerm]
                   | ProcessInstance  ProcessName NextPars
                   | ProcessInstance2 ProcessName Updates
@@ -75,7 +75,7 @@ unfoldUpdates2 procs (Sum var typ rhs) = Sum var typ (unfoldUpdates2 procs rhs)
 unfoldUpdates2 procs (Plus rhss) = Plus (map (unfoldUpdates2 procs) rhss)
 unfoldUpdates2 procs (ProcessInstance name pars) = ProcessInstance name pars
 unfoldUpdates2 procs (Implication cond rhs) = Implication cond (unfoldUpdates2 procs rhs)
-unfoldUpdates2 procs (LambdaPrefix lambda rhs) = LambdaPrefix lambda (unfoldUpdates2 procs rhs)
+unfoldUpdates2 procs (LambdaPrefix reward lambda rhs) = LambdaPrefix reward lambda (unfoldUpdates2 procs rhs)
 unfoldUpdates2 procs (ActionPrefix reward act pars prob rhs) = ActionPrefix reward act pars prob (unfoldUpdates2 procs rhs)
 unfoldUpdates2 procs (ActionPrefix2 reward act pars distrs) = ActionPrefix2 reward act pars [(e, unfoldUpdates2 procs r) | (e,r) <- distrs]
 unfoldUpdates2 procs (ProcessInstance2 name pars) | correct      = ProcessInstance name newPars
@@ -98,7 +98,7 @@ functionaliseProbabilities2 i j (Sum var typ rhs) = (Sum var typ newRHS, nextInd
 functionaliseProbabilities2 i j (Implication cond rhs) = (Implication cond newRHS, nextIndex)
   where
     (newRHS, nextIndex) = functionaliseProbabilities2 i j rhs
-functionaliseProbabilities2 i j (LambdaPrefix lambda rhs) = (LambdaPrefix lambda newRHS, nextIndex)
+functionaliseProbabilities2 i j (LambdaPrefix reward lambda rhs) = (LambdaPrefix reward lambda newRHS, nextIndex)
   where
     (newRHS, nextIndex) = functionaliseProbabilities2 i j rhs
 functionaliseProbabilities2 i j (ActionPrefix reward act pars prob rhs) = (ActionPrefix reward act pars prob newRHS, nextIndex)

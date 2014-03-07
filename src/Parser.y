@@ -255,7 +255,8 @@ RHS : RHS '++' RHS                                                              
     | Expression '=>' RHS                                             { Implication $1 $3 }
     | ProcessInstantiation                                            { $1 }
     | '(' RHS ')'                                                     { $2 }
-    | '<' Expression '>' '.' RHS                                      { LambdaPrefix $2 $5}
+    | '<' Expression '>' '.' RHS                                      { LambdaPrefix (Variable "0") $2 $5}
+    | '<' Expression '>' Reward '.' RHS                               { LambdaPrefix $4 $2 $6}
 
 ProcessInstantiation : string '[' Expressions ']'                     { ProcessInstance $1 (reverse $3) }
                      | string '[' Updates ']'                         { ProcessInstance2 $1 (reverse $3) }

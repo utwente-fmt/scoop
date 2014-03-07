@@ -98,7 +98,7 @@ noUnguardedRecursion allProcs (p:ps) | unguardedRecursion = error("Error: Unguar
     unguardedRecursion = elem name (reachableUnguarded allProcs [] (getRHS p))
 
 reachableUnguarded :: [Process] -> [String] -> ProcessTerm -> [String]
-reachableUnguarded allProcs seen (LambdaPrefix _ _)        = []
+reachableUnguarded allProcs seen (LambdaPrefix _ _ _)        = []
 reachableUnguarded allProcs seen (ActionPrefix _ _ _ _ rhs)  = []
 reachableUnguarded allProcs seen (Sum _ _ rhs)             = reachableUnguarded allProcs seen rhs
 reachableUnguarded allProcs seen (Implication _ rhs)       = reachableUnguarded allProcs seen rhs
@@ -190,7 +190,7 @@ checkRates (ProcessInstance _ _)    = True
 checkRates (ProcessInstance2 _ _)   = True
 checkRates (Sum _ _ rhs)            = checkRates rhs
 checkRates (Plus rhss)              = and [checkRates rhs | rhs <- rhss]
-checkRates (LambdaPrefix e rhs)     = error ("Error: PA with rate: " ++ show e ++ ". Either use the -ma option, or remove the rate.") 
+checkRates (LambdaPrefix reward e rhs)     = error ("Error: PA with rate: " ++ show e ++ ". Either use the -ma option, or remove the rate.") 
 checkRates (Implication _ rhs)      = checkRates rhs
 checkRates (ActionPrefix _ _ _ _ rhs) = checkRates rhs
 checkRates (ActionPrefix2 _ _ _ probdefs) = and [checkRates (snd pd) | pd <- probdefs]
@@ -329,12 +329,13 @@ processToLPPE mergeTransitions constants dataspec processesMA (InitialProcess na
 encodeMA :: Process -> Process
 encodeMA (Process name pars rhs) = Process name pars (encodeProcessTerm rhs)
 
-encodeProcessTerm (Plus rs)                     = Plus (map encodeProcessTerm rs)
-encodeProcessTerm (Implication c rhs)           = Implication c (encodeProcessTerm rhs)
-encodeProcessTerm (LambdaPrefix l rhs)          = ActionPrefix (Variable "0") "rate" [l] [("i0", TypeRange 1 1, (Variable "1"))] (encodeProcessTerm rhs)
-encodeProcessTerm (Sum var typ rhs)             = Sum var typ (encodeProcessTerm rhs)
+encodeProcessTerm (Plus rs)                            = Plus (map encodeProcessTerm rs)
+encodeProcessTerm (Implication c rhs)                  = Implication c (encodeProcessTerm rhs)
+encodeProcessTerm (LambdaPrefix (Variable "0") l rhs)  = ActionPrefix (Variable "0") "rate" [l] [("i0", TypeRange 1 1, (Variable "1"))] (encodeProcessTerm rhs)
+encodeProcessTerm (LambdaPrefix reward l rhs)          = encodeProcessTerm (LambdaPrefix (Variable "0") l (ActionPrefix reward "tau" [] [("i0", TypeRange 1 1, (Variable "1"))] rhs))
+encodeProcessTerm (Sum var typ rhs)                    = Sum var typ (encodeProcessTerm rhs)
 encodeProcessTerm (ActionPrefix reward a aps probs rh) = ActionPrefix reward a aps probs (encodeProcessTerm rh)
-encodeProcessTerm (ProcessInstance name pars)   = ProcessInstance name pars
+encodeProcessTerm (ProcessInstance name pars)          = ProcessInstance name pars
 
 substituteConstantsInConstants :: Constants -> Constants
 substituteConstantsInConstants [] = []
@@ -353,7 +354,7 @@ substituteConstantsInProcessTerm :: [FunctionDef] -> [(Variable, Expression)] ->
 substituteConstantsInProcessTerm functions subs (Plus rs)           = Plus (map (substituteConstantsInProcessTerm functions subs) rs)
 substituteConstantsInProcessTerm functions subs (Implication c rhs) = Implication (substituteInExpression subs c) 
                                                                         (substituteConstantsInProcessTerm functions subs rhs)
-substituteConstantsInProcessTerm functions subs (LambdaPrefix l rhs) = LambdaPrefix (substituteInExpression subs l) 
+substituteConstantsInProcessTerm functions subs (LambdaPrefix reward l rhs) = LambdaPrefix (substituteInExpression subs reward) (substituteInExpression subs l) 
                                                                         (substituteConstantsInProcessTerm functions subs rhs)
 substituteConstantsInProcessTerm functions subs (Sum var typ rhs)   = Sum var typNew (substituteConstantsInProcessTerm functions subs rhs)
   where
