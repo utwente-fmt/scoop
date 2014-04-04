@@ -1,7 +1,14 @@
 #ifndef __LIB_SCOOP_H
 #define __LIB_SCOOP_H
 
-typedef struct scoop_model *scoop_model_t;
+/**
+ * \file scoop.h
+ *
+ * This file declares the scoop functions using the types
+ * they use from the clients point of view.
+ *
+ */
+typedef void* scoop_model_t;
 
 extern void scoop_put_constant(const char*var,const char*val);
 

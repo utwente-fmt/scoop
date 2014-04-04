@@ -1,7 +1,6 @@
 // -*- tab-width:4 ; indent-tabs-mode:nil -*-
 #include <HsFFI.h>
 #include <LibScoop_stub.h>
-//FIXME: #include <scoop.h>
 
 #ifdef __GLASGOW_HASKELL__
 extern void __stginit_LibScoop(void);
@@ -11,7 +10,8 @@ extern void __stginit_LibScoop(void);
 static HsStablePtr constants;
 
 void scoop_put_constant(const char*var,const char*val){
-    constants=const_put(constants,var,val);
+    // Haskell does not change strings so the casts are safe.
+    constants=const_put(constants,(char*)var,(char*)val);
 }
 
 void scoop_init(int argc, char *argv[])
