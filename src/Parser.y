@@ -121,6 +121,8 @@ failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
       '='             { TokenEqual }
       '=>'            { TokenImplies }
       '->'            { TokenProbDef }
+      true            { TokenTrue }
+      false           { TokenFalse }
       string          { TokenString $$ }
       hide            { TokenHide }
       rename          { TokenRename }
@@ -350,6 +352,8 @@ data Token = TokenSum
            | TokenDotDot
            | TokenAt
            | TokenHide
+           | TokenTrue
+           | TokenFalse
            | TokenRename
            | TokenEncap
            | TokenAnd
@@ -403,6 +407,8 @@ instance Show Token where
      TokenActions -> "actions"
      TokenComma -> ","
      TokenEqual -> "="
+     TokenTrue -> "true"
+     TokenFalse -> "false"
      TokenNotEqual -> "!="
      TokenNot -> "!"
      TokenPSum -> "psum"
@@ -459,6 +465,19 @@ lexer cont ('h':'i':'d':'e':'\n':cs) = cont TokenHide ('\n':cs)
 lexer cont ('h':'i':'d':'e':'\r':cs) = cont TokenHide ('\r':cs)
 lexer cont ('h':'i':'d':'e':'\t':cs) = cont TokenHide ('\t':cs)
 lexer cont ('h':'i':'d':'e':'(':cs) = cont TokenHide ('(':cs)
+
+lexer cont ('t':'r':'u':'e':' ':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'\n':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'\r':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'\t':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'(':cs) = error ("Please use \"T\" instead of \"true\"")
+
+lexer cont ('f':'a':'l':'s':'e':' ':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'\n':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'\r':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'\t':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'(':cs) = error ("Please use \"F\" instead of \"false\"")
+
 
 lexer cont ('g':'l':'o':'b':'a':'l':' ':cs) = cont TokenGlobal cs
 lexer cont ('g':'l':'o':'b':'a':'l':'\n':cs) = cont TokenGlobal ('\n':cs)
