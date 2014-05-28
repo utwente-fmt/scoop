@@ -25,7 +25,7 @@ allValues :: Type -> [DataType] -> [String]
 allValues (TypeRange from to) _      = [show i | i <- [from..to]]
 allValues (TypeName "Bool") _        = ["T", "F"]
 allValues (TypeName "Queue") _       = ["empty"]
-allValues (TypeName "Nat") _         = ["nat"]
+allValues (TypeName "Nat") _         = ["0"]
 allValues (TypeName typeName) []     = error("Error: Undefined type " ++ typeName ++ " used.")
 --allValues (TypeName typeName) ((NatType name):xs) | name == typeName = ["0"]
 --                                               | otherwise        = allValues (TypeName typeName) xs
