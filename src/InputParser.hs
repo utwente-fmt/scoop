@@ -32,8 +32,8 @@ type StateRewards = [(Expression, Expression)]
 
 -- This function takes a prCRL specification, and returns the corresponding
 -- LPPE including its initial state.
-parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
-parseInput isMA sharedActions mergeTransitions prismComposition constants1 input 
+parseInput :: Bool -> Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
+parseInput isMA sharedActions ioActions mergeTransitions prismComposition constants1 input 
                                                               | not(isMA) && stateRewards /= [] = error("State rewards only allowed for use in combination with IMCA. Use the -ma flag to work with them.")   
                                                               | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
                                                               | otherwise            = error("Error in specification.")
@@ -41,7 +41,7 @@ parseInput isMA sharedActions mergeTransitions prismComposition constants1 input
     input2                 = input -- removeLineBreaks input
     (processes, initials, nocomm, reach, reachCondition, stateRewards, hiding,encapsulation, renaming, communication, constants, datatypes, functions, actiontypes, untilformula, globals)  = parseProcesses constants1 dataspec input2 isMA
     dataspec               = (datatypes ++ builtInTypes, [], functions ++ builtInFunctions)
-    system_                = fst (makeLPPE 1 (nrOfParallelProcesses initials > 1) sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes initials)
+    system_                = fst (makeLPPE 1 (nrOfParallelProcesses initials > 1) sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes initials)
     system                 = if (prismComposition) then fixGlobalVariables system_ else system_
     system2a               = rename (hide (encapsulate system encapsulation) hiding) renaming
     system2_               = addGlobals system2a dataspec globals
@@ -293,24 +293,24 @@ getFunctions (_:rest)                           = getFunctions rest
 functionaliseContext i [] = []
 functionaliseContext i (r:rs) = (functionaliseProbabilities i r):(functionaliseContext (i+1) rs)
 
-makeLPPE :: Int -> Bool -> Bool -> [String] -> Bool -> Bool -> [(Action,Action,Action)] -> Constants -> DataSpec -> [Process] -> InitialProcessDefinition -> (PSystem, Int)
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitSingleProcess proc)   = (system, nr + 1)
+makeLPPE :: Int -> Bool -> Bool -> Bool -> [String] -> Bool -> Bool -> [(Action,Action,Action)] -> Constants -> DataSpec -> [Process] -> InitialProcessDefinition -> (PSystem, Int)
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitSingleProcess proc)   = (system, nr + 1)
   where
     (lppe, init) = processToLPPE mergeTransitions constants dataspec processes proc
     system = (if addIndices then suffixStringLPPE ("_" ++ show nr) lppe else lppe, init)
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitParallel proc1 proc2) = (composeSystems sharedActions nocomm prismComposition system1 system2 communication, nr2)
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitParallel proc1 proc2) = (composeSystems sharedActions ioActions nocomm prismComposition system1 system2 communication, nr2)
   where
-    (system1,nr1) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc1
-    (system2, nr2) = makeLPPE nr1 addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc2
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitHiding actions proc) = (hide system actions, nr2)
+    (system1,nr1) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc1
+    (system2, nr2) = makeLPPE nr1 addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc2
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitHiding actions proc) = (hide system actions, nr2)
   where
-    (system,nr2) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitEncapsulation actions proc) = (encapsulate system actions, nr2)
+    (system,nr2) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitEncapsulation actions proc) = (encapsulate system actions, nr2)
   where
-    (system,nr2) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitRenaming actions proc) = (rename system actions, nr2)
+    (system,nr2) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitRenaming actions proc) = (rename system actions, nr2)
   where
-    (system,nr2) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
+    (system,nr2) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
 
 processToLPPE :: Bool -> Constants -> DataSpec -> [Process] -> InitialProcess -> PSystem
 processToLPPE mergeTransitions constants dataspec processesMA (InitialProcess name initials constantdefs) = system

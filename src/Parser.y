@@ -13,6 +13,7 @@ printExpressions updates = infixString [(printExpression var) ++ " := " ++ (prin
 
 data Item = DataActions [(String, ActionType)]
           | DataHiding [String] 
+          | DataParam [String] 
           | DataGlobal (Variable, Type) Expression 
           | DataRenaming [(String, String)] 
           | DataUntilFormula String
@@ -125,6 +126,7 @@ failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
       false           { TokenFalse }
       string          { TokenString $$ }
       hide            { TokenHide }
+      param           { TokenParam }
       rename          { TokenRename }
       bool            { TokenBool }
       actions         { TokenActions }
@@ -152,6 +154,7 @@ Items : {- empty -}             { [] }
       | Item Items              { $1 : $2 }
 
 Item : hide     Strings                                        { DataHiding $2 }
+     | param    Strings                                        { DataParam $2 }
      | rename   StringPairs                                    { DataRenaming $2 }
      | actions  ActionTypes                                    { DataActions $2 }
      | global   string ':' Type '=' Expression                 { DataGlobal ($2, $4) $6 }
@@ -352,6 +355,7 @@ data Token = TokenSum
            | TokenDotDot
            | TokenAt
            | TokenHide
+           | TokenParam
            | TokenTrue
            | TokenFalse
            | TokenRename
@@ -414,6 +418,7 @@ instance Show Token where
      TokenPSum -> "psum"
      TokenDotDot -> ".."
      TokenHide -> "hide"
+     TokenParam -> "param"
      TokenGlobal -> "global"
      TokenEncap -> "encap"
      TokenAnd -> "&"
@@ -465,6 +470,12 @@ lexer cont ('h':'i':'d':'e':'\n':cs) = cont TokenHide ('\n':cs)
 lexer cont ('h':'i':'d':'e':'\r':cs) = cont TokenHide ('\r':cs)
 lexer cont ('h':'i':'d':'e':'\t':cs) = cont TokenHide ('\t':cs)
 lexer cont ('h':'i':'d':'e':'(':cs) = cont TokenHide ('(':cs)
+
+lexer cont ('p':'a':'r':'a':'m':' ':cs) = cont TokenParam cs
+lexer cont ('p':'a':'r':'a':'m':'\n':cs) = cont TokenParam ('\n':cs)
+lexer cont ('p':'a':'r':'a':'m':'\r':cs) = cont TokenParam ('\r':cs)
+lexer cont ('p':'a':'r':'a':'m':'\t':cs) = cont TokenParam ('\t':cs)
+lexer cont ('p':'a':'r':'a':'m':'(':cs) = cont TokenParam ('(':cs)
 
 lexer cont ('t':'r':'u':'e':' ':cs) = error ("Please use \"T\" instead of \"true\"")
 lexer cont ('t':'r':'u':'e':'\n':cs) = error ("Please use \"T\" instead of \"true\"")
@@ -594,7 +605,7 @@ lexNumber cont cs = cont (TokenString var) rest
 
 getString [] = ("","")
 getString ('.':'.':cs) = ("", '.':'.':cs)
-getString (c:cs) | elem c "\n\t\r ',()&=*.<>@+{}^:-!?/|\"[]" = ("", c:cs)
+getString (c:cs) | elem c "\n\t\r ',()&=*.<>@+{}^:-/|\"[]" = ("", c:cs)
                  | otherwise = (str,rest)
   where
     (s,r) = getString cs
