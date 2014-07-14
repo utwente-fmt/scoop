@@ -1,33 +1,12 @@
 {
 module ParserExpressionsGlobals where
 
+import ParserAux
+import DataSpec
 import Data.Char
-import Processes
 import Expressions
 import Auxiliary
-import DataSpec
-import Debug.Trace
-
-type LineNumber = Int
-data ParseResult a = Ok a | Failed String
-type ParserMonad a = String -> LineNumber -> ParseResult a
-
-getLineNo :: ParserMonad LineNumber
-getLineNo = \s l -> Ok l
-
-
-thenParserMonad :: ParserMonad a -> (a -> ParserMonad b) -> ParserMonad b
-m `thenParserMonad ` k = \s -> \l ->
-   case (m s l) of 
-       Ok a -> k a s l
-       Failed e -> Failed e
-
-returnParserMonad :: a -> ParserMonad a
-returnParserMonad a = \s -> \l -> Ok a
-
-failParserMonad :: String -> ParserMonad a
-failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
-
+import Processes
 
 }
 

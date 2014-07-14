@@ -6,6 +6,7 @@ import Data.List
 import Expressions
 import DataSpec
 import ParserUntil
+import ParserAux
 import Processes
 import Simplify
 import Debug.Trace

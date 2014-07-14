@@ -1,7 +1,10 @@
 module ParserAux where
 
+import DataSpec
+import Data.Char
 import Expressions
 import Auxiliary
+import Processes
 
 printExpressions [] = []
 printExpressions updates = infixString [(printExpression var) ++ " := " ++ (printExpression val) | (var,val) <- updates] ", "
@@ -57,3 +60,11 @@ returnParserMonad a = \s -> \l -> Ok a
 
 failParserMonad :: String -> ParserMonad a
 failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
+
+-- For ParserUntil:
+data UntilFormula     = UntilFormula ActionExpression ActionExpression  deriving (Show, Eq)
+data ActionExpression = ActionName String [String]
+                      | ActionOr   ActionExpression ActionExpression
+                      | ActionNot  ActionExpression
+                      | ActionTrue
+                      deriving (Show, Eq)
