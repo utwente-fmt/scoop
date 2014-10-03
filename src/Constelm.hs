@@ -20,7 +20,7 @@ constelm (lppe, initial, dataspec) = removeParametersFromLPPE (lppeReduced, init
     parNames     = map fst (getLPPEPars lppe)
     parTypes     = map snd (getLPPEPars lppe)
     allVariables = [(p,parNames!!p,i) | (p, i) <- (zip [0..length initial - 1] initial)]
-    singletons   = [(p,parNames!!p,i) | (p, i) <- (zip [0..length initial - 1] initial), length (getValues dataspec (parTypes!!p)) == 1, (getValues dataspec (parTypes!!p)) /= ["empty"], (getValues dataspec (parTypes!!p)) /= ["nat"]]
+    singletons   = [(p,parNames!!p,i) | (p, i) <- (zip [0..length initial - 1] initial), length (getValues dataspec (parTypes!!p)) == 1, (getValues dataspec (parTypes!!p)) /= ["empty"], parTypes!!p /= TypeName "Nat"]
     constants    = [(p,i) | (p,s,i) <- (allVariables \\ ((getNonConstants lppe allVariables) \\ singletons))]
     lppeReduced  = substituteInLPPE lppe constants
 
