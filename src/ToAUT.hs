@@ -32,8 +32,8 @@ toAUTNonProb ignorecycles spec cadp confl checkConfluence checkDTMC isMA removeR
 createTransitionsNonProb :: [(Int, String, EdgeLabel, [(Probability, Int)])] -> [(Int, EdgeLabel, Int)]
 createTransitionsNonProb []                              = []
 createTransitionsNonProb ((from, reward, label, []):trans)       = createTransitionsNonProb trans
-createTransitionsNonProb ((from, reward, label, (to:tos)):trans) | label == "reachConditionAction" = createTransitionsNonProb trans
-                                                         | otherwise                 = (from, label, snd to):rest
+createTransitionsNonProb ((from, reward, label, (to:tos)):trans) | label == "reachConditionAction" || take 17 label == "stateRewardAction" = createTransitionsNonProb trans
+                                                                 | otherwise                                                       = (from, label, snd to):rest
   where
     rest = createTransitionsNonProb ((from, reward, label, tos):trans)
 
@@ -54,29 +54,31 @@ printTransitionsIMC :: [(Int, String, EdgeLabel, [(Probability, Int)])] -> [Stri
 printTransitionsIMC [] reachActions                                        = ([],[])
 printTransitionsIMC ((from, reward, label, ((prob,to):tos)):ts) reachActions = (imcTransitions, reach1 ++ reach2 ++ reach3) 
   where
-    (transitions1, reach1, next) = printRates   from ((from, reward, label, ((prob,to):tos)):ts) reachActions
-    (transitions2, reach2)       = printActions from ((from, reward, label, ((prob,to):tos)):ts) reachActions
-    (rest, reach3)               = printTransitionsIMC next reachActions
-    imcTransitions               = (if transitions1 /= "" then "s" ++ show from ++ " !" ++ "\n" else [])
-                                   ++ if transitions2 == "" && rest == "" then [transitions1!!i | i <- [0..length transitions1 - 2]] else transitions1
-                                   ++ if rest == "" then [transitions2!!i | i <- [0..length transitions2 - 2]] else transitions2
-                                   ++ rest
+    (transitions1, reach1, next, stateReward) = printRates   from ((from, reward, label, ((prob,to):tos)):ts) reachActions 0
+    (transitions2, reach2)                    = printActions from ((from, reward, label, ((prob,to):tos)):ts) reachActions
+    (rest, reach3)                            = printTransitionsIMC next reachActions
+    imcTransitions                            = (if transitions1 /= "" then "s" ++ show from ++ " ! " ++ (show (fromRational (changeFraction stateReward))) ++ "\n" else [])
+                                              ++ if transitions2 == "" && rest == "" then [transitions1!!i | i <- [0..length transitions1 - 2]] else transitions1
+                                              ++ if rest == "" then [transitions2!!i | i <- [0..length transitions2 - 2]] else transitions2
+                                              ++ rest
 
-printRates fromState [] reachActions                                  = ([],[],[])
-printRates fromState ((from, reward, label, ((prob,to):tos)):ts) reachActions 
-  | fromState /= from      = ([],[], ((from, reward, label, ((prob,to):tos)):ts))
-  | take 4 label /= "rate" = (rest,reachRest,next)
-  | otherwise              = ("* s" ++ show to ++ " " ++ newLabel ++ "\n" ++ rest, reach, next)
+printRates fromState [] reachActions stateReward                                 = ([],[],[],0)
+printRates fromState ((from, reward, label, ((prob,to):tos)):ts) reachActions stateReward 
+  | fromState /= from                    = ([],[], ((from, reward, label, ((prob,to):tos)):ts), stateReward)
+  | take 17 label == "stateRewardAction" = (rest,reachRest,next,nextReward + (getFraction (takeWhile (/= ')') (drop 18 label))))
+  | take 4 label /= "rate"               = (rest,reachRest,next,nextReward)
+  | otherwise                            = ("* s" ++ show to ++ " " ++ newLabel ++ "\n" ++ rest, reach, next, nextReward)
   where
-    newLabel              = printFraction (takeWhile (/= ')') (drop 5 label))
-    (rest,reachRest,next) = printRates fromState ts reachActions
-    reach                 = (if checkLabel label reachActions then ["s" ++ show from] else []) ++ reachRest
+    (rest,reachRest,next, nextReward) = printRates fromState ts reachActions stateReward
+    newLabel                          = printFraction (takeWhile (/= ')') (drop 5 label))
+    reach                             = (if checkLabel label reachActions then ["s" ++ show from] else []) ++ reachRest
 
 printActions fromState [] reachActions = ([],[])
 printActions fromState ((from, reward, label, ((prob,to):tos)):ts) reachActions
   | fromState /= from         = ([],[])
   | take 4 label == "rate"    = (rest, reachRest)
   | label == "reachConditionAction" = (rest, ("s" ++ show from):reachRest)
+  | take 17 label == "stateRewardAction" = (rest, reachRest)
   | otherwise                 = (transition ++ rest, reach)
   where
     transition        = ("s" ++ show from ++ " " ++ (changeCommas label) ++ (if reward /= "0" then " "  ++ reward else "") ++ "\n"
@@ -108,7 +110,7 @@ toAUTProb ignorecycles spec cadp confl checkConfluence checkDTMC isMA removeRate
 
 printTransitionsProb :: Bool -> [(Int, String, EdgeLabel, [(Probability, Int)])] -> Int -> [Char]
 printTransitionsProb cadp [] i                                  = []
-printTransitionsProb cadp ((from, reward, label, [("1",to)]):ts) i      | label == "reachConditionAction" = printTransitionsProb cadp ts i
+printTransitionsProb cadp ((from, reward, label, [("1",to)]):ts) i      | label == "reachConditionAction" || take 17 label == "stateRewardAction" = printTransitionsProb cadp ts i
                                                                 | otherwise = "(" ++ show from ++ ", \"" ++ (if cadp then (if label == "tau" then "i" else changeCommas label) else label) ++ "\", " ++ show to ++ ")\n"
                                                                            ++ printTransitionsProb cadp ts i
 printTransitionsProb cadp ((from, reward, label, ((prob,to):tos)):ts) i = printTransitionsProb2 cadp (from, reward, label, ((prob,to):tos)) i

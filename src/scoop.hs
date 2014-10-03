@@ -26,11 +26,11 @@ import Data.List
 main = do
   args <- getArgs
   input <- hGetContents stdin
-  putStrLn "SCOOP (last changed on 24 november 2013)"
+  hPutStrLn stderr "SCOOP (last changed on 07 March 2014)"
   -- Parsing the command-line parameters.
   let flags      = ["-conf", "-dead", "-mlppe", "-keeprates", "-maxprogress", "-divergence", "-ma", "-pa", "-mapa", "-imca",
                     "-checkuntil", "-cadp", "-verbose", "-trans", "-lppe", "-size", "-prism", "-aut", "-visited", "-noprob",
-                    "-ignorecycles", "-statespace", "-prcrl", "-deadlocks", "-store", "-parelm", "-exact", "-removecycles", "-PAstyle", "-strong", "-dtmc", "-nobasics", "-shared"]
+                    "-ignorecycles", "-statespace", "-io", "-prcrl", "-deadlocks", "-store", "-parelm", "-exact", "-removecycles", "-PAstyle", "-strong", "-dtmc", "-nobasics", "-shared"]
 
   let ma                   = elem "-ma" args     
   let pa                   = elem "-pa" args
@@ -45,6 +45,7 @@ main = do
   let prism                = elem "-prism" args               -- only for PA
   let noprobs              = elem "-noprob" args
   let sharedActions        = elem "-shared" args
+  let ioActions            = elem "-io" args
   let preserveDivergence   = elem "-divergence" args || ma    -- only in PA mode this can be disabled
   let visited              = elem "-visited" args             -- only for PA
   let printAUTfile         = elem "-aut" args
@@ -93,7 +94,7 @@ main = do
   when (verbose)       $ putStrLn ("Dead variable reduction: " ++ show dead ++ "\n")
 
   -- Parsing the input, and doing all the relevant transformations for prCRL mode.
-  let (basicSpec, actiontypes, untilformula,reach,stateRewards) = (parseInput ma sharedActions False False constants) input
+  let (basicSpec, actiontypes, untilformula,reach,stateRewards) = (parseInput ma sharedActions ioActions False False constants) input
   let reachNames                                   = [takeWhile (/= '(') r | r <- reach]
   let standardTransformations                      = if nobasics then id else simplify . sumelm . simplify . constelm . sumelm
   let transformations                              = standardTransformations . 

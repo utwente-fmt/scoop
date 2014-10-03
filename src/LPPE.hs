@@ -145,6 +145,10 @@ getPSummandNrs lppe = [0..length (getPSummands lppe) - 1]
 getAction :: PSummand -> Action
 getAction (params, c, reward, a, aps, probChoices, g) = a
 
+-- Provides the reward of a summand.
+getReward :: PSummand -> Expression
+getReward (params, c, reward, a, aps, probChoices, g) = reward
+
 -- Changes the action of a summand.
 setAction :: PSummand -> Action -> PSummand
 setAction (params, c, reward, a, aps, probChoices, g) aNew = (params, c, reward, aNew, aps, probChoices, g)
@@ -236,8 +240,8 @@ hide :: PSystem -> [Action] -> PSystem
 hide system []                                        = system
 hide (LPPE name pars summands, init) (action:actions) = hide newSystem actions
   where
-    newSystem = (LPPE name pars (   [(params, c, reward, "tau" ++ (dropWhile (/= '{') a), [], probChoices, g) | (params, c, reward, a, aps, probChoices, g) <- summands , takeWhile (/= '{') a == action]
-                                 ++ [s | s <- summands , takeWhile (/= '{') (getAction s) /= action]), init)
+    newSystem = (LPPE name pars (   [(params, c, reward, "tau" ++ (dropWhile (/= '{') a), [], probChoices, g) | (params, c, reward, a, aps, probChoices, g) <- summands , takeWhile (\x -> x /= '{' && x /= '!' && x /= '?') a == takeWhile (\x -> x /= '{' && x /= '!' && x /= '?') action]
+                                 ++ [s | s <- summands , takeWhile (\x -> x /= '{' && x /= '!' && x /= '?') (getAction s) /= takeWhile (\x -> x /= '{' && x /= '!' && x /= '?') action]), init)
 
 -- This function renames actions in a system.
 rename :: PSystem -> [(Action, Action)] -> PSystem
@@ -323,40 +327,47 @@ substituteInActionName substitutions action = aNew
 
 -- This function takes two systems and a communication function,
 -- and produces their parallel composition.
-composeSystems :: Bool -> [String] -> Bool -> PSystem -> PSystem -> [(Action,Action,Action)] -> (LPPE, [[Char]])
-composeSystems sharedActions nocomm prism ((LPPE name1 pars1 summands1),initial1) ((LPPE name2 pars2 summands2),initial2) communications
-  = (LPPE "Z" (pars1 ++ pars2) (combinePSummands sharedActions nocomm prism summands1 summands2 pars1 pars2 communications), initial1 ++ initial2)
+composeSystems :: Bool -> Bool -> [String] -> Bool -> PSystem -> PSystem -> [(Action,Action,Action)] -> (LPPE, [[Char]])
+composeSystems sharedActions ioActions nocomm prism ((LPPE name1 pars1 summands1),initial1) ((LPPE name2 pars2 summands2),initial2) communications
+  = (LPPE "Z" (pars1 ++ pars2) (combinePSummands sharedActions ioActions nocomm prism summands1 summands2 pars1 pars2 communications), initial1 ++ initial2)
 
 -- This function takes two lists of summands of different processes,
 -- and produces the corresponding summands in the parallel composition
 -- of these processes.
-combinePSummands :: Bool -> [String] -> Bool -> [PSummand] -> [PSummand] -> ProcessPars -> ProcessPars -> [(Action,Action,Action)] -> [PSummand]
-combinePSummands sharedActions nocomm prism summands1 summands2 pars1 pars2 communications = alone ++ together
+combinePSummands :: Bool -> Bool -> [String] -> Bool -> [PSummand] -> [PSummand] -> ProcessPars -> ProcessPars -> [(Action,Action,Action)] -> [PSummand]
+combinePSummands sharedActions ioActions nocomm prism summands1 summands2 pars1 pars2 communications = alone ++ together
   where
     shared   = [a | a <- getSharedActions summands1 summands2, not (elem a nocomm)]
-    alone    = mergePSummands (if sharedActions || prism then shared else []) summands1 summands2 pars1 pars2
-    comm     = \x -> \y -> createCommFunction x y (communications ++ if sharedActions || prism then [(a,a,a) | a <- shared, a /= "tau"] else [])
+    alone    = mergePSummands ioActions (if sharedActions || prism || ioActions then shared else []) summands1 summands2 pars1 pars2
+    comm     = \x -> \y -> createCommFunction x y (communications ++ if sharedActions || ioActions || prism then [(a,a,a) | a <- shared, a /= "tau"] else [])
     together = communicatePSummands [(a,b) | a <- summands1, b <- summands2] comm
 
 -- This function obtains the actions over which two systems (given by their summands)
 -- can/must synchronise.
 getSharedActions :: [PSummand] -> [PSummand] -> [Action]
-getSharedActions summands1 summands2 = intersect (map getAction summands1) (map getAction summands2)
+getSharedActions summands1 summands2 = intersect (map removeExtensions (map getAction summands1)) (map removeExtensions (map getAction summands2))
+
+removeExtensions action = takeWhile (/= '?') (takeWhile (/= '!') action)
+
+isInternal action = takeWhile (/= '?') (takeWhile (/= '!') action) == action
+isOutput action = (takeWhile (/= '!') action) ++ "!" == action
+isInput action = (takeWhile (/= '?') action) ++ "?" == action
+
 
 -- This function takes the union of the summands of two processes,
 -- changing their next state function to take into account the new
 -- parameters of the product process.
 -- The actions provided to this functions are assumed to be shared actions,
 -- and are mandatory to synchronise on.
-mergePSummands :: [Action] -> [PSummand] -> [PSummand] -> ProcessPars -> ProcessPars -> [PSummand]
-mergePSummands sharedActions [] [] pars1 pars2                                            
+mergePSummands :: Bool -> [Action] -> [PSummand] -> [PSummand] -> ProcessPars -> ProcessPars -> [PSummand]
+mergePSummands io sharedActions [] [] pars1 pars2                                            
   = []
-mergePSummands sharedActions ((params, c, reward, a, aps, probChoices, g):summands1) summands2 pars1 pars2 
-  | a == "tau" || not (elem a sharedActions) = [(params, c, reward, a, aps, probChoices, mergeNextStatesLeft g pars2)]  ++ (mergePSummands sharedActions summands1 summands2 pars1 pars2)
-  | otherwise                                = mergePSummands sharedActions summands1 summands2 pars1 pars2
-mergePSummands sharedActions [] ((params, c, reward, a, aps, probChoices, g):summands2) pars1 pars2              
-  | a == "tau" || not (elem a sharedActions) = [(params, c, reward, a, aps, probChoices, mergeNextStatesRight g pars1)]  ++ (mergePSummands sharedActions [] summands2 pars1 pars2)
-  | otherwise                                = mergePSummands sharedActions [] summands2 pars1 pars2
+mergePSummands io sharedActions ((params, c, reward, a, aps, probChoices, g):summands1) summands2 pars1 pars2 
+  | (io && (isInternal a)) || a == "tau" || not (elem (removeExtensions a) sharedActions) = [(params, c, reward, a, aps, probChoices, mergeNextStatesLeft g pars2)]  ++ (mergePSummands io sharedActions summands1 summands2 pars1 pars2)
+  | otherwise                                = mergePSummands io sharedActions summands1 summands2 pars1 pars2
+mergePSummands io sharedActions [] ((params, c, reward, a, aps, probChoices, g):summands2) pars1 pars2              
+  | (io && (isInternal a)) || a == "tau" || not (elem (removeExtensions a) sharedActions) = [(params, c, reward, a, aps, probChoices, mergeNextStatesRight g pars1)]  ++ (mergePSummands io sharedActions [] summands2 pars1 pars2)
+  | otherwise                                = mergePSummands io sharedActions [] summands2 pars1 pars2
 
 -- This function changes the next state function to take
 -- into account the new parameters (leaving them unchanged).
@@ -367,11 +378,19 @@ mergeNextStatesRight n pars1 = [Variable x | x <- (map fst pars1)] ++ n
 -- by communication of actions.
 communicatePSummands :: [(PSummand, PSummand)] -> CommFunction -> [PSummand]
 communicatePSummands [] comm = []
-communicatePSummands ((summand1, summand2):xs) comm
-  | communicable = communicatePSummands xs comm ++ merge summand1 summand2 commAction2
+communicatePSummands ((summand1, summand2):xs) comm 
+  | communicable  = communicatePSummands xs comm ++ merge summand1 summand2 commAction2
   | otherwise        = communicatePSummands xs comm
   where
-    commAction   = comm (takeWhile (/= '{') (getAction summand1)) (takeWhile (/= '{') (getAction summand2))
+    a1 = takeWhile (/= '{') (getAction summand1)
+    a2 = takeWhile (/= '{') (getAction summand2)
+    commAction_  = comm (removeExtensions a1) (removeExtensions a2)
+    commAction   = if commAction_ == "" then "" else
+	                 if (isInput a1 && isInput a2) then commAction_ ++ "?" else 
+	                 if (isInput a1 && isOutput a2) then commAction_ ++ "!" else
+		             if (isOutput a1 && isInput a2) then commAction_ ++ "!" else
+	        	     if (isOutput a1 && isOutput a2) then error("Outputs of parallel components not distinct: " ++ a1) else
+		 		       commAction_
     communicable = commAction /= "" && length (getActionPars summand1) == length (getActionPars summand2)
     commAction2  = commAction ++ (combineGlobalUpdates (dropWhile (/= '{') (getAction summand1)) (dropWhile (/= '{') (getAction summand2))  )
 

@@ -32,18 +32,21 @@ type StateRewards = [(Expression, Expression)]
 
 -- This function takes a prCRL specification, and returns the corresponding
 -- LPPE including its initial state.
-parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
-parseInput isMA sharedActions mergeTransitions prismComposition constants1 input | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
+parseInput :: Bool -> Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
+parseInput isMA sharedActions ioActions mergeTransitions prismComposition constants1 input 
+                                                              | not(isMA) && stateRewards /= [] = error("State rewards only allowed for use in combination with IMCA. Use the -ma flag to work with them.")   
+                                                              | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
                                                               | otherwise            = error("Error in specification.")
   where
     input2                 = input -- removeLineBreaks input
     (processes, initials, nocomm, reach, reachCondition, stateRewards, hiding,encapsulation, renaming, communication, constants, datatypes, functions, actiontypes, untilformula, globals)  = parseProcesses constants1 dataspec input2 isMA
     dataspec               = (datatypes ++ builtInTypes, [], functions ++ builtInFunctions)
-    system_                = fst (makeLPPE 1 (nrOfParallelProcesses initials > 1) sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes initials)
+    system_                = fst (makeLPPE 1 (nrOfParallelProcesses initials > 1) sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes initials)
     system                 = if (prismComposition) then fixGlobalVariables system_ else system_
     system2a               = rename (hide (encapsulate system encapsulation) hiding) renaming
     system2_               = addGlobals system2a dataspec globals
-    system2                = if reachCondition == Variable "T" then system2_ else addReachCondition reachCondition system2_
+    system2__              = if reachCondition == Variable "T" then system2_ else addReachCondition reachCondition system2_
+    system2                = addStateRewards stateRewards system2__
     summands               = getPSummands (fst system2)
     reachNew               = if reachCondition == Variable "T" then reach else ("reachConditionAction":reach)
     pars                   = getLPPEPars (fst system2)
@@ -69,7 +72,10 @@ addReachCondition expression (lppe, initial) = (newLPPE, initial)
   where
     newLPPE = addSummand lppe ([], expression, Variable "0", "reachConditionAction", [], [], map (\x -> Variable (fst x)) (getLPPEPars lppe))
 
-
+addStateRewards [] (lppe, initial)                             = (lppe, initial)
+addStateRewards ((stateCondition, reward):rest) (lppe, initial) = (newLPPE, newInitial)
+  where
+    (newLPPE,newInitial) = addStateRewards rest ((addSummand lppe ([], stateCondition, Variable "0", "stateRewardAction", [reward], [], map (\x -> Variable (fst x)) (getLPPEPars lppe))), initial)
 	
 correctSumTypes [] = True
 correctSumTypes (t:ts) | t == TypeName "Queue" = error ("Cannot sum over type Queue")
@@ -92,7 +98,7 @@ noUnguardedRecursion allProcs (p:ps) | unguardedRecursion = error("Error: Unguar
     unguardedRecursion = elem name (reachableUnguarded allProcs [] (getRHS p))
 
 reachableUnguarded :: [Process] -> [String] -> ProcessTerm -> [String]
-reachableUnguarded allProcs seen (LambdaPrefix _ _)        = []
+reachableUnguarded allProcs seen (LambdaPrefix _ _ _)        = []
 reachableUnguarded allProcs seen (ActionPrefix _ _ _ _ rhs)  = []
 reachableUnguarded allProcs seen (Sum _ _ rhs)             = reachableUnguarded allProcs seen rhs
 reachableUnguarded allProcs seen (Implication _ rhs)       = reachableUnguarded allProcs seen rhs
@@ -112,10 +118,13 @@ validateData (lppe, init) (datatypes, _, functions) = valid
 correctInits :: PSystem -> DataSpec -> Bool
 correctInits (lppe, init) dataspec | not enoughInitials = error("Error: Number of initial values not correct.")
                                    | result    = True
+                                   | printType (snd (initials!!index)) == "Queue" = trace("Warning: Initial value potentially incorrect. Input " ++ fst (initials!!index) ++ " of type " ++ printType (snd (initials!!index)) ++ " has unexpected values.") True
                                    | otherwise = error("Error: Initial value incorrect. Input " ++ fst (initials!!index) ++ " is not of type " ++ printType (snd (initials!!index))) 
   where
     initials = zip init (map snd (getLPPEPars lppe))
-    elements = [elem var (getValues dataspec typ) || (typ == TypeName "Queue" && and [elem v (concat (map snd (snd3 dataspec))) | v <- split var ';']) || (typ == TypeName "Nat" && isInteger var) | (var, typ) <- initials]
+    elements = [elem var (getValues dataspec typ) ||
+                (typ == TypeName "Queue" && and [elem v (concat (map snd (snd3 dataspec))) || isInteger v | v <- split var ';']) || 
+                (typ == TypeName "Nat" && isInteger var) | (var, typ) <- initials]
     enoughInitials = length init == length (getLPPEPars lppe) 
     result   = and elements 
     index    = [i | i <- [0..length elements - 1], elements!!i == False]!!0
@@ -181,7 +190,7 @@ checkRates (ProcessInstance _ _)    = True
 checkRates (ProcessInstance2 _ _)   = True
 checkRates (Sum _ _ rhs)            = checkRates rhs
 checkRates (Plus rhss)              = and [checkRates rhs | rhs <- rhss]
-checkRates (LambdaPrefix e rhs)     = error ("Error: PA with rate: " ++ show e ++ ". Either use the -ma option, or remove the rate.") 
+checkRates (LambdaPrefix reward e rhs)     = error ("Error: PA with rate: " ++ show e ++ ". Either use the -ma option, or remove the rate.") 
 checkRates (Implication _ rhs)      = checkRates rhs
 checkRates (ActionPrefix _ _ _ _ rhs) = checkRates rhs
 checkRates (ActionPrefix2 _ _ _ probdefs) = and [checkRates (snd pd) | pd <- probdefs]
@@ -284,24 +293,24 @@ getFunctions (_:rest)                           = getFunctions rest
 functionaliseContext i [] = []
 functionaliseContext i (r:rs) = (functionaliseProbabilities i r):(functionaliseContext (i+1) rs)
 
-makeLPPE :: Int -> Bool -> Bool -> [String] -> Bool -> Bool -> [(Action,Action,Action)] -> Constants -> DataSpec -> [Process] -> InitialProcessDefinition -> (PSystem, Int)
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitSingleProcess proc)   = (system, nr + 1)
+makeLPPE :: Int -> Bool -> Bool -> Bool -> [String] -> Bool -> Bool -> [(Action,Action,Action)] -> Constants -> DataSpec -> [Process] -> InitialProcessDefinition -> (PSystem, Int)
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitSingleProcess proc)   = (system, nr + 1)
   where
     (lppe, init) = processToLPPE mergeTransitions constants dataspec processes proc
     system = (if addIndices then suffixStringLPPE ("_" ++ show nr) lppe else lppe, init)
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitParallel proc1 proc2) = (composeSystems sharedActions nocomm prismComposition system1 system2 communication, nr2)
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitParallel proc1 proc2) = (composeSystems sharedActions ioActions nocomm prismComposition system1 system2 communication, nr2)
   where
-    (system1,nr1) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc1
-    (system2, nr2) = makeLPPE nr1 addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc2
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitHiding actions proc) = (hide system actions, nr2)
+    (system1,nr1) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc1
+    (system2, nr2) = makeLPPE nr1 addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc2
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitHiding actions proc) = (hide system actions, nr2)
   where
-    (system,nr2) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitEncapsulation actions proc) = (encapsulate system actions, nr2)
+    (system,nr2) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitEncapsulation actions proc) = (encapsulate system actions, nr2)
   where
-    (system,nr2) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
-makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitRenaming actions proc) = (rename system actions, nr2)
+    (system,nr2) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
+makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes (InitRenaming actions proc) = (rename system actions, nr2)
   where
-    (system,nr2) = makeLPPE nr addIndices sharedActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
+    (system,nr2) = makeLPPE nr addIndices sharedActions ioActions nocomm mergeTransitions prismComposition communication constants dataspec processes proc	
 
 processToLPPE :: Bool -> Constants -> DataSpec -> [Process] -> InitialProcess -> PSystem
 processToLPPE mergeTransitions constants dataspec processesMA (InitialProcess name initials constantdefs) = system
@@ -320,12 +329,13 @@ processToLPPE mergeTransitions constants dataspec processesMA (InitialProcess na
 encodeMA :: Process -> Process
 encodeMA (Process name pars rhs) = Process name pars (encodeProcessTerm rhs)
 
-encodeProcessTerm (Plus rs)                     = Plus (map encodeProcessTerm rs)
-encodeProcessTerm (Implication c rhs)           = Implication c (encodeProcessTerm rhs)
-encodeProcessTerm (LambdaPrefix l rhs)          = ActionPrefix (Variable "0") "rate" [l] [("i0", TypeRange 1 1, (Variable "1"))] (encodeProcessTerm rhs)
-encodeProcessTerm (Sum var typ rhs)             = Sum var typ (encodeProcessTerm rhs)
+encodeProcessTerm (Plus rs)                            = Plus (map encodeProcessTerm rs)
+encodeProcessTerm (Implication c rhs)                  = Implication c (encodeProcessTerm rhs)
+encodeProcessTerm (LambdaPrefix (Variable "0") l rhs)  = ActionPrefix (Variable "0") "rate" [l] [("i0", TypeRange 1 1, (Variable "1"))] (encodeProcessTerm rhs)
+encodeProcessTerm (LambdaPrefix reward l rhs)          = encodeProcessTerm (LambdaPrefix (Variable "0") l (ActionPrefix reward "tau" [] [("i0", TypeRange 1 1, (Variable "1"))] rhs))
+encodeProcessTerm (Sum var typ rhs)                    = Sum var typ (encodeProcessTerm rhs)
 encodeProcessTerm (ActionPrefix reward a aps probs rh) = ActionPrefix reward a aps probs (encodeProcessTerm rh)
-encodeProcessTerm (ProcessInstance name pars)   = ProcessInstance name pars
+encodeProcessTerm (ProcessInstance name pars)          = ProcessInstance name pars
 
 substituteConstantsInConstants :: Constants -> Constants
 substituteConstantsInConstants [] = []
@@ -344,7 +354,7 @@ substituteConstantsInProcessTerm :: [FunctionDef] -> [(Variable, Expression)] ->
 substituteConstantsInProcessTerm functions subs (Plus rs)           = Plus (map (substituteConstantsInProcessTerm functions subs) rs)
 substituteConstantsInProcessTerm functions subs (Implication c rhs) = Implication (substituteInExpression subs c) 
                                                                         (substituteConstantsInProcessTerm functions subs rhs)
-substituteConstantsInProcessTerm functions subs (LambdaPrefix l rhs) = LambdaPrefix (substituteInExpression subs l) 
+substituteConstantsInProcessTerm functions subs (LambdaPrefix reward l rhs) = LambdaPrefix (substituteInExpression subs reward) (substituteInExpression subs l) 
                                                                         (substituteConstantsInProcessTerm functions subs rhs)
 substituteConstantsInProcessTerm functions subs (Sum var typ rhs)   = Sum var typNew (substituteConstantsInProcessTerm functions subs rhs)
   where

@@ -39,5 +39,5 @@ rateSummandEnabled (MSummand (params, c, lambda, g)) ((params2, c2, reward2, a, 
 getActionSummands :: [GeneralSummand] -> [PSummand]
 getActionSummands []                  = []
 getActionSummands ((MSummand m):rest) = getActionSummands rest
-getActionSummands ((PSummand  p):rest) | getAction p /= "reachConditionAction" = p:(getActionSummands rest)
-                                       | otherwise                       = getActionSummands rest
+getActionSummands ((PSummand  p):rest) | getAction p /= "reachConditionAction" && getAction p /= "stateRewardAction" = p:(getActionSummands rest)
+                                       | otherwise                                                                   = getActionSummands rest

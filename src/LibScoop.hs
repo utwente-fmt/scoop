@@ -4,7 +4,7 @@ module LibScoop where
  
 import Data.Int
 import Data.List
-import Data.Array.Storable
+import Data.Array.Storable -- this will have to be Data.Array.Unsafe in future releases.
 
 import Foreign.C.Types
 import Foreign.C.String
@@ -218,6 +218,8 @@ prcrl_explore_smds p_spec smds src dst c_lbl = do
             writeArray lbl_arr 6 0
          else if lbl=="reachConditionAction" then 
             writeArray lbl_arr 6 3
+         else if lbl=="stateRewardAction" then 
+            writeArray lbl_arr 6 4
          else
             writeArray lbl_arr 6 1
          writeArray lbl_arr 2 (fromIntegral act)

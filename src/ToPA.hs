@@ -43,7 +43,7 @@ getStatesAndTransitionsConfluence ignorecycles spec confluent checkConfluence ch
   where
     (statespace, initial, visited) = getStateSpace ignorecycles spec confluent checkConfluence checkVisited checkDTMC isMA removeRates preserveDivergence showDeadlocks storeReps reachActions
     numberOfStates                 = size (fst statespace) 
-    numberOfTransitions            = length [t | t <- snd statespace, thd4 t /= "reachConditionAction"]
+    numberOfTransitions            = length [t | t <- snd statespace, thd4 t /= "reachConditionAction", take 17 (thd4 t) /= "stateRewardAction"]
 
 -- Given a system and a set of confluent summands,
 -- this function provides the unfolded state space.
@@ -107,7 +107,8 @@ getStateSpace2Visited spec (state:states) highest statespace repr visited conflu
 
 mergeTransitions :: [Transition] -> [Transition]
 mergeTransitions []                   = []
-mergeTransitions ((from,reward,label,to):ts) | take 5 label == "rate(" = (from, reward, "rate(" ++ totalRate ++ ")", to):newTS
+mergeTransitions ((from,reward,label,to):ts) | take 17 label == "stateRewardAction" = (from, reward, label,to):(mergeTransitions ts)
+                                             | take 5 label == "rate(" = (from, reward, "rate(" ++ totalRate ++ ")", to):newTS
 	                                         | otherwise               = (from, reward, label,to):newTS2
   where
     totalRate   = writeFraction (sum [getFraction (takeWhile (/= ')') (drop 5 l)) | (f,r,l,t) <- ((from,reward,label,to):ts), f == from, t == to, take 5 l == "rate("])
@@ -177,7 +178,7 @@ changeToRepresentatives spec repr confluent (t:rest) storeReps reachActions = (n
     (newRest, newRepr2,visited2, visitedTrans2) = changeToRepresentatives spec newRepr1 confluent rest storeReps reachActions
 
 changeTransitionToRepresentatives :: PSpecification -> RepresentationMap -> ConfluentSummands -> Transition -> Bool -> [String] -> (Transition, RepresentationMap, Int, Int)
-changeTransitionToRepresentatives spec repr confluent (s,r,a,next) storeReps reachActions = ((newS, "0", a, newNext), newRepr2, visited, visitedTrans)
+changeTransitionToRepresentatives spec repr confluent (s,r,a,next) storeReps reachActions = ((newS, r, a, newNext), newRepr2, visited, visitedTrans)
   where
     newS     = s
     (newNext, newRepr2, visited, visitedTrans) = changeNextStateToRepresentatives spec repr confluent next storeReps reachActions
@@ -254,10 +255,10 @@ exploreNewState repr spec confluents v numbers low unexplored count reachActions
     -- Het onderstaande is zodat, in geval van een state met slechts 1 uitgaande tau-transitie, die ook als confluent gezien wordt
     transNonConfluent           = potentialBehaviour True spec confluents (getDataSpec spec) v mapping [summands!!i | i <- [0.. length summands - 1], not (elem i confluents)]
 --                                  ++ fakeConfluence
-    transNonConfluentInteractive = [(a,"0", b,c) | (a,r, b,c) <- transNonConfluent, take 4 b /= "rate"]
+    transNonConfluentInteractive = [(a,r, b,c) | (a,r, b,c) <- transNonConfluent, take 4 b /= "rate"]
     newstates                   = if (trans == [] && length transNonConfluentInteractive == 1 && 
 	                              length [(state,reward,label,[("1", next)]) | (state,reward, label,[("1", next)]) <- transNonConfluentInteractive, not (enablesObservableAction spec next reachActions && not(enablesObservableAction spec state reachActions))] == 1
-	                              && thd4 (transNonConfluentInteractive!!0) == "tau" && length (frt4 (transNonConfluentInteractive!!0)) == 1) 
+	                              && thd4 (transNonConfluentInteractive!!0) == "tau" && snd4 (transNonConfluentInteractive!!0) == "0" && length (frt4 (transNonConfluentInteractive!!0)) == 1) 
 	                              then concat [Data.List.map snd next | (s,r,a,next) <- transNonConfluentInteractive] 
 	                              else concat [Data.List.map snd next | (s,r,a,next) <- trans]   
     --newstates                   = concat [Data.List.map snd next | (s,a,next) <- trans]
@@ -316,7 +317,7 @@ getNumberFromList ((v,i):rest) from | from == v = i
 
 hasTau :: [Transition] -> Bool
 hasTau [] = False
-hasTau ((from,reward,label,next):rest)  = (take 4 label /= "rate" && label /= "reachConditionAction") || hasTau rest
+hasTau ((from,reward,label,next):rest)  = (take 4 label /= "rate" && label /= "reachConditionAction" && take 17 label /= "stateRewardAction") || hasTau rest
 --hasTau ((from,label,next):rest)  = label == "tau" || hasTau rest
 
 removeRateTransitions :: [Transition] -> [Transition]
