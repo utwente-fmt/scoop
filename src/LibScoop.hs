@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
- 
+
 module LibScoop where
- 
+
 import Data.Int
 import Data.List
 import Data.Array.Storable -- this will have to be Data.Array.Unsafe in future releases.
@@ -43,12 +43,12 @@ load_mapa cname cconst = do load_common cname cconst True
 
 load_common :: CString -> StablePtr [(String,String)] -> Bool -> IO (StablePtr ScoopSpec)
 load_common cname cconst mapa = do
-  name <- peekCString cname 
+  name <- peekCString cname
   inFile <- openFile name ReadMode
   input <- hGetContents inFile
   const <- deRefStablePtr cconst
   let constants = [(var,Variable val)|(var,val)<-const]
-  let (basicSpec, actiontypes, untilformula,reach,state_rewards) = parseInput mapa False False False constants input
+  let (basicSpec, actiontypes, untilformula,reach,state_rewards) = parseInput mapa False False False False constants input
 --  putStrLn (show reach)
 --  putStrLn (show (getDataSpec basicSpec))
   putStrLn (show state_rewards)
@@ -58,9 +58,9 @@ load_common cname cconst mapa = do
   let _sumelm = if mapa then encode . sumelmM . decode else sumelm
   let transformations = simplify . _sumelm . simplify . constelm . _sumelm
   let !specification                                = transformations basicSpec
---  let confluents = getConfluentSummands specification False reach 
+--  let confluents = getConfluentSummands specification False reach
 --  putStrLn (show confluents)
---  let confluents_ = getConfluentSummands specification True [] 
+--  let confluents_ = getConfluentSummands specification True []
 --  putStrLn (show confluents_)
   hClose inFile
   newStablePtr (specification,reach,state_rewards)
@@ -80,7 +80,7 @@ get_confluent_summands spec = do
   let confluents = getConfluentSummands specification False reach
 --  putStrLn (show confluents)
   newStablePtr confluents
-  
+
 get_diamond_summands spec = do
   (specification,reach,_) <- deRefStablePtr spec
   let confluents = getConfluentSummands specification False []
@@ -90,11 +90,11 @@ get_diamond_summands spec = do
 empty_conf lst = do
   ll <- deRefStablePtr lst
   return (fromIntegral (if ll==[] then 1 else 0))
-  
+
 head_conf lst = do
   ll <- deRefStablePtr lst
   return (fromIntegral (head ll))
-  
+
 tail_conf lst = do
   ll <- deRefStablePtr lst
   freeStablePtr lst
@@ -216,9 +216,9 @@ prcrl_explore_smds p_spec smds src dst c_lbl = do
             writeArray lbl_arr 6 2
          else if lbl=="tau" then
             writeArray lbl_arr 6 0
-         else if lbl=="reachConditionAction" then 
+         else if lbl=="reachConditionAction" then
             writeArray lbl_arr 6 3
-         else if lbl=="stateRewardAction" then 
+         else if lbl=="stateRewardAction" then
             writeArray lbl_arr 6 4
          else
             writeArray lbl_arr 6 1
@@ -278,7 +278,7 @@ prcrl_par_name sptr idx = do
   let (v,t) =  pars !! (fromIntegral idx)
 --  putStrLn ("par "++ (show idx)++": " ++ v)
   newCString v
-  
+
 prcrl_get_action sptr smd = do
   (p_spec,_,_) <- deRefStablePtr sptr
   let lppe = getLPPE p_spec
@@ -297,7 +297,7 @@ prcrl_par_type sptr idx = do
  where
    f v (TypeName x) = x
    f v _ = v ++ "_t"
-   
+
 prcrl_pars :: StablePtr ScoopSpec -> IO CInt
 prcrl_pars sptr = do
   (p_spec,_,_) <- deRefStablePtr sptr
@@ -306,7 +306,7 @@ prcrl_pars sptr = do
   let init = getInitialState p_spec
 --  putStrLn (show init)
   return (fromIntegral (length pars))
- 
+
 prcrl_rewards :: StablePtr ScoopSpec -> IO CInt
 prcrl_rewards sptr = do
   (_,_,rewards) <- deRefStablePtr sptr
@@ -329,5 +329,3 @@ print_prcrl sptr = do
   (ptr,_,_) <- deRefStablePtr sptr
   print (LPPEShowPRCRL ptr)
   putStrLn "bye"
-
-
