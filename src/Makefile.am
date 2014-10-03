@@ -28,8 +28,9 @@ scoop$(EXEEXT):
 #%.o: %.hs
 #	ghc -c -O -o $@ $<
 
+# I've excluded $(BUILT_SOURCES) from clean
 clean::
-	$(RM) scoop libscoop.so $(BUILT_SOURCES) *.hi *.o *.dyn_hi *.dyn_o
+	$(RM) scoop libscoop.so *.hi *.o *.dyn_hi *.dyn_o
 
 libscoop.so: LibScoop.hs lib_scoop.c
 	ghc --make $(GHC_SCOOP_SHARED) -c ${top_srcdir}/src/LibScoop.hs
