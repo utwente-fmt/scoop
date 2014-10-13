@@ -5,6 +5,7 @@ module LibScoop where
 import Data.Int
 import Data.List
 import Data.Array.Storable -- this will have to be Data.Array.Unsafe in future releases.
+import Data.Array.Unsafe
 
 import Foreign.C.Types
 import Foreign.C.String
