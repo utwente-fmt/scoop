@@ -48,7 +48,8 @@ load_common cname cconst mapa = do
   input <- hGetContents inFile
   const <- deRefStablePtr cconst
   let constants = [(var,Variable val)|(var,val)<-const]
-  let (basicSpec, actiontypes, untilformula,reach,state_rewards) = parseInput mapa False False False constants input
+  let (basicSpec, actiontypes, untilformula,reach,state_rewards,comm) = parseInput mapa False False False constants input
+  putStrLn (show comm)
 --  putStrLn (show reach)
 --  putStrLn (show (getDataSpec basicSpec))
   putStrLn (show state_rewards)

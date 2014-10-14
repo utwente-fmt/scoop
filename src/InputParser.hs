@@ -32,10 +32,11 @@ type StateRewards = [(Expression, Expression)]
 
 -- This function takes a prCRL specification, and returns the corresponding
 -- LPPE including its initial state.
-parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String -> (PSpecification, [(String, Type)], [String],[String], StateRewards)
+parseInput :: Bool -> Bool -> Bool -> Bool -> Constants -> String ->
+ (PSpecification, [(String, Type)], [String],[String], StateRewards , [(String,String,String)])
 parseInput isMA sharedActions mergeTransitions prismComposition constants1 input 
                                                               | not(isMA) && stateRewards /= [] = error("State rewards only allowed for use in combination with IMCA. Use the -ma flag to work with them.")   
-                                                              | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards)
+                                                              | correctSpecification = ((fst system2, snd system2, newDataspec), actiontypes, untilformula, reachNew, stateRewards,communication)
                                                               | otherwise            = error("Error in specification.")
   where
     input2                 = input -- removeLineBreaks input

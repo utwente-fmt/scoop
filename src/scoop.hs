@@ -93,7 +93,7 @@ main = do
   when (verbose)       $ putStrLn ("Dead variable reduction: " ++ show dead ++ "\n")
 
   -- Parsing the input, and doing all the relevant transformations for prCRL mode.
-  let (basicSpec, actiontypes, untilformula,reach,stateRewards) = (parseInput ma sharedActions False False constants) input
+  let (basicSpec, actiontypes, untilformula,reach,stateRewards,_) = (parseInput ma sharedActions False False constants) input
   let reachNames                                   = [takeWhile (/= '(') r | r <- reach]
   let standardTransformations                      = if nobasics then id else simplify . sumelm . simplify . constelm . sumelm
   let transformations                              = standardTransformations . 
