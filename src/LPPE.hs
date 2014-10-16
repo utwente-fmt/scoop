@@ -7,6 +7,7 @@ import Auxiliary
 import Data.List
 import Debug.Trace
 import qualified ParserExpressionsGlobals
+import ParserAux
 import Parser
 
 type PSystem        = (LPPE, InitialState)
@@ -312,7 +313,7 @@ substituteInActionName substitutions action = aNew
   where
       expression = (takeWhile (/= '}') (drop 1 (dropWhile (/= '{') action)))
       parsedExpressions_ = ParserExpressionsGlobals.parseExpression expression 1
-      (ParserExpressionsGlobals.Ok parsedExpressions)           = parsedExpressions_
+      (Ok parsedExpressions)           = parsedExpressions_
       newExpressions = [(substituteInExpression substitutions f,substituteInExpression substitutions t) | (f,t) <- parsedExpressions]
       aNew_    = (takeWhile (/= '{') action) ++ "{" ++ printExpressions newExpressions ++ "}"	
       aNew     = if elem '{' action then aNew_ else action
