@@ -15,7 +15,7 @@ BUILT_SOURCES += Parser.hs
 
 GHC_SCOOP = -O -XBangPatterns -outputdir. -i${top_srcdir}/src
 GHC_SCOOP_STATIC = $(GHC_SCOOP)
-GHC_SCOOP_SHARED = -osuf dyn_o -hisuf dyn_hi -dynamic -fPIC $(GHC_SCOOP)
+GHC_SCOOP_SHARED = -osuf dyn_o -hisuf dyn_hi -dynamic -fPIC $(GHC_SCOOP) -XCPP
 
 .PHONY: scoop libscoop.so
 

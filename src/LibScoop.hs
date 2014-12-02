@@ -5,7 +5,9 @@ module LibScoop where
 import Data.Int
 import Data.List
 import Data.Array.Storable -- this will have to be Data.Array.Unsafe in future releases.
+#if __GLASGOW_HASKELL__>=708
 import Data.Array.Unsafe
+#endif
 
 import Foreign.C.Types
 import Foreign.C.String
