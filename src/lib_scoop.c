@@ -11,7 +11,7 @@ extern void __stginit_LibScoop(void);
 static HsStablePtr constants;
 
 void scoop_put_constant(const char*var,const char*val){
-    constants=const_put(constants,var,val);
+    constants=const_put(constants,(char*)var,(char*)val);
 }
 
 void scoop_init(int argc, char *argv[])
