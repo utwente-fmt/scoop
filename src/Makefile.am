@@ -29,7 +29,7 @@ scoop$(EXEEXT):
 #	ghc -c -O -o $@ $<
 
 clean::
-	$(RM) scoop libscoop.so $(BUILT_SOURCES) *.hi *.o *.dyn_hi *.dyn_o
+	$(RM) scoop libscoop.so $(BUILT_SOURCES) *.hi *.o *.dyn_hi *.dyn_o LibScoop_stub.h
 
 libscoop.so: LibScoop.hs lib_scoop.c
 	ghc --make $(GHCFLAGS) $(GHC_SCOOP_SHARED) -c ${top_srcdir}/src/LibScoop.hs
