@@ -1,6 +1,11 @@
 # files:
 Makefile
 Makefile.in
+Parser.hs
+ParserExpressions.hs
+ParserExpressionsGlobals.hs
+ParserUntil.hs
+PrismParser.hs
 scoop
 
 # patterns:
