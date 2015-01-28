@@ -1,8 +1,6 @@
 
 .NOTPARALLEL :
 
-EXTRA_DIST  = ParserExpressionsGlobals.hs Parser.hs ParserExpressions.hs ParserUntil.hs
-
 if HAVE_HASHMAP
 bin_PROGRAMS = scoop
 scoop_SOURCES =
@@ -47,3 +45,35 @@ all-local: libscoop.so
 install-exec-local: libscoop.so
 	$(INSTALL) libscoop.so $(DESTDIR)$(libdir)/libscoop.so
 
+EXTRA_DIST = \
+ Auxiliary.hs \
+ DataSpec.hs \
+ InputParser.hs \
+ Linearise.hs \
+ MLPPE.hs \
+ ParserExpressionsGlobals.y \
+ Parser.y \
+ scoop.h \
+ StepPA.hs \
+ ToPA.hs \
+ Usage.hs \
+ Confluence.hs \
+ DeadVariable.hs \
+ lib_scoop.c \
+ LPPE.hs \
+ Parelm.hs \
+ ParserExpressions.y \
+ Processes.hs \
+ scoop.hs \
+ Sumelm.hs \
+ ToPRISM.hs \
+ Constelm.hs \
+ Expressions.hs \
+ LibScoop.hs \
+ MaximalProgress.hs \
+ ParserAux.hs \
+ ParserUntil.y \
+ Regularise.hs \
+ Simplify.hs \
+ ToAUT.hs \
+ ToTrans.hs
