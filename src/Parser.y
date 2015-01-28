@@ -1,67 +1,12 @@
 {
 module Parser where
 
+import ParserAux
 import Data.Char
-import Processes
-import Expressions
 import Auxiliary
 import DataSpec
-import Debug.Trace
-
-printExpressions [] = []
-printExpressions updates = infixString [(printExpression var) ++ " := " ++ (printExpression val) | (var,val) <- updates] ", "
-
-data Item = DataActions [(String, ActionType)]
-          | DataHiding [String] 
-          | DataGlobal (Variable, Type) Expression 
-          | DataRenaming [(String, String)] 
-          | DataUntilFormula String
-          | DataFormula Expression
-          | DataEncapsulation [String]   
-          | DataNoCommunication [String]   
-          | DataReach [String]   
-          | DataReachCondition Expression
-          | DataStateReward Expression Expression
-          | DataCommunication [(String, String, String)] 
-          | DataConstant String Expression
-          | DataEnumType String [String] 
-          | DataNat String
-          | DataQueue String
-          | DataRangeType String Expression Expression
-          | DataFunction String [([String], String)]
-          | ParserProcess Process
-          | ParserInitialProcess InitialProcessDefinition
-              deriving (Show, Eq)
-
-data ActionType = None | Bool | IntRange Expression Expression deriving (Show, Eq)
-
-data InitialProcessDefinition = InitSingleProcess InitialProcess
-                              | InitParallel InitialProcessDefinition InitialProcessDefinition
-                              | InitHiding [Action] InitialProcessDefinition
-                              | InitEncapsulation [Action] InitialProcessDefinition
-                              | InitRenaming [(Action, Action)] InitialProcessDefinition
-                                   deriving (Show, Eq)
-
-type LineNumber = Int
-data ParseResult a = Ok a | Failed String
-type ParserMonad a = String -> LineNumber -> ParseResult a
-
-getLineNo :: ParserMonad LineNumber
-getLineNo = \s l -> Ok l
-
-
-thenParserMonad :: ParserMonad a -> (a -> ParserMonad b) -> ParserMonad b
-m `thenParserMonad ` k = \s -> \l ->
-   case (m s l) of 
-       Ok a -> k a s l
-       Failed e -> Failed e
-
-returnParserMonad :: a -> ParserMonad a
-returnParserMonad a = \s -> \l -> Ok a
-
-failParserMonad :: String -> ParserMonad a
-failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
-
+import Expressions
+import Processes
 
 }
 
@@ -121,8 +66,11 @@ failParserMonad err = \s -> \l -> Failed (err ++ " on line " ++ show l)
       '='             { TokenEqual }
       '=>'            { TokenImplies }
       '->'            { TokenProbDef }
+      true            { TokenTrue }
+      false           { TokenFalse }
       string          { TokenString $$ }
       hide            { TokenHide }
+      param           { TokenParam }
       rename          { TokenRename }
       bool            { TokenBool }
       actions         { TokenActions }
@@ -150,6 +98,7 @@ Items : {- empty -}             { [] }
       | Item Items              { $1 : $2 }
 
 Item : hide     Strings                                        { DataHiding $2 }
+     | param    Strings                                        { DataParam $2 }
      | rename   StringPairs                                    { DataRenaming $2 }
      | actions  ActionTypes                                    { DataActions $2 }
      | global   string ':' Type '=' Expression                 { DataGlobal ($2, $4) $6 }
@@ -255,7 +204,8 @@ RHS : RHS '++' RHS                                                              
     | Expression '=>' RHS                                             { Implication $1 $3 }
     | ProcessInstantiation                                            { $1 }
     | '(' RHS ')'                                                     { $2 }
-    | '<' Expression '>' '.' RHS                                      { LambdaPrefix $2 $5}
+    | '<' Expression '>' '.' RHS                                      { LambdaPrefix (Variable "0") $2 $5}
+    | '<' Expression '>' Reward '.' RHS                               { LambdaPrefix $4 $2 $6}
 
 ProcessInstantiation : string '[' Expressions ']'                     { ProcessInstance $1 (reverse $3) }
                      | string '[' Updates ']'                         { ProcessInstance2 $1 (reverse $3) }
@@ -263,6 +213,8 @@ ProcessInstantiation : string '[' Expressions ']'                     { ProcessI
 
 
 Type         : string                                { TypeName $1 }
+             | Queue                                 { TypeName "Queue" }
+             | Nat                                   { TypeName "Nat" }
              | '{' Expression '..' Expression '}'    { TypeRangeExpressions $2 $4 }
 
 IndepProbs   : IndepProb                        { [$1] }
@@ -347,6 +299,9 @@ data Token = TokenSum
            | TokenDotDot
            | TokenAt
            | TokenHide
+           | TokenParam
+           | TokenTrue
+           | TokenFalse
            | TokenRename
            | TokenEncap
            | TokenAnd
@@ -400,11 +355,14 @@ instance Show Token where
      TokenActions -> "actions"
      TokenComma -> ","
      TokenEqual -> "="
+     TokenTrue -> "true"
+     TokenFalse -> "false"
      TokenNotEqual -> "!="
      TokenNot -> "!"
      TokenPSum -> "psum"
      TokenDotDot -> ".."
      TokenHide -> "hide"
+     TokenParam -> "param"
      TokenGlobal -> "global"
      TokenEncap -> "encap"
      TokenAnd -> "&"
@@ -456,6 +414,25 @@ lexer cont ('h':'i':'d':'e':'\n':cs) = cont TokenHide ('\n':cs)
 lexer cont ('h':'i':'d':'e':'\r':cs) = cont TokenHide ('\r':cs)
 lexer cont ('h':'i':'d':'e':'\t':cs) = cont TokenHide ('\t':cs)
 lexer cont ('h':'i':'d':'e':'(':cs) = cont TokenHide ('(':cs)
+
+lexer cont ('p':'a':'r':'a':'m':' ':cs) = cont TokenParam cs
+lexer cont ('p':'a':'r':'a':'m':'\n':cs) = cont TokenParam ('\n':cs)
+lexer cont ('p':'a':'r':'a':'m':'\r':cs) = cont TokenParam ('\r':cs)
+lexer cont ('p':'a':'r':'a':'m':'\t':cs) = cont TokenParam ('\t':cs)
+lexer cont ('p':'a':'r':'a':'m':'(':cs) = cont TokenParam ('(':cs)
+
+lexer cont ('t':'r':'u':'e':' ':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'\n':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'\r':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'\t':cs) = error ("Please use \"T\" instead of \"true\"")
+lexer cont ('t':'r':'u':'e':'(':cs) = error ("Please use \"T\" instead of \"true\"")
+
+lexer cont ('f':'a':'l':'s':'e':' ':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'\n':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'\r':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'\t':cs) = error ("Please use \"F\" instead of \"false\"")
+lexer cont ('f':'a':'l':'s':'e':'(':cs) = error ("Please use \"F\" instead of \"false\"")
+
 
 lexer cont ('g':'l':'o':'b':'a':'l':' ':cs) = cont TokenGlobal cs
 lexer cont ('g':'l':'o':'b':'a':'l':'\n':cs) = cont TokenGlobal ('\n':cs)
@@ -572,7 +549,7 @@ lexNumber cont cs = cont (TokenString var) rest
 
 getString [] = ("","")
 getString ('.':'.':cs) = ("", '.':'.':cs)
-getString (c:cs) | elem c "\n\t\r ',()&=*.<>@+{}^:-!?/|\"[]" = ("", c:cs)
+getString (c:cs) | elem c "\n\t\r ',()&=*.<>@+{}^:-/|\"[]" = ("", c:cs)
                  | otherwise = (str,rest)
   where
     (s,r) = getString cs

@@ -4,12 +4,8 @@ module ParserUntil where
 import Data.Char
 import Processes
 
-data UntilFormula     = UntilFormula ActionExpression ActionExpression  deriving (Show, Eq)
-data ActionExpression = ActionName String [String]
-                      | ActionOr   ActionExpression ActionExpression
-                      | ActionNot  ActionExpression
-                      | ActionTrue
-                      deriving (Show, Eq)
+import ParserAux
+
 }
 
 %name parseUntil

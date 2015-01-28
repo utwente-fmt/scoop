@@ -14,6 +14,7 @@ import Processes
 import Linearise
 import Auxiliary
 import Parser
+import ParserAux
 import qualified ParserExpressions
 import qualified ParserExpressionsGlobals
 import DataSpec
@@ -363,7 +364,7 @@ substituteConstantsInProcessTerm functions subs (ActionPrefix reward a aps probs
     where
       expression = (takeWhile (/= '}') (drop 1 (dropWhile (/= '{') a)))
       parsedExpressions_ = ParserExpressionsGlobals.parseExpression expression 1
-      (ParserExpressionsGlobals.Ok parsedExpressions)           = parsedExpressions_
+      (Ok parsedExpressions)           = parsedExpressions_
       newExpressions = [(substituteInExpression subs f,substituteInExpression subs t) | (f,t) <- parsedExpressions]
       aNew_    = (takeWhile (/= '{') a) ++ "{" ++ printExpressions newExpressions ++ "}"	
       aNew     = if elem '{' a then aNew_ else a
@@ -400,7 +401,7 @@ addGlobalToNextStates var (params, c, reward, a, aps, prob, g) | a == "setGlobal
   where
     expression = (takeWhile (/= '}') (drop 1 (dropWhile (/= '{') a)))
     parsedExpressions_ = ParserExpressionsGlobals.parseExpression expression 1
-    (ParserExpressionsGlobals.Ok parsedExpressions__)           = parsedExpressions_
+    (Ok parsedExpressions__)           = parsedExpressions_
     parsedExpressions                                        = [(v,val) | (Variable v,val) <- parsedExpressions__] ++ 
                                                                [(v1++v2,val) | (Function "concat" [Variable v1, Variable v2],val) <- parsedExpressions__]
     newValues = [val | (v,val) <- parsedExpressions, v == var]
