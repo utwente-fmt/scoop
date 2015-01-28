@@ -25,6 +25,12 @@ TRY_COMPILE_GHC([
                 AC_MSG_WARN(scoop will not be built: hashmap not found.))
 AM_CONDITIONAL([HAVE_HASHMAP], [test x"$have_hashmap" != "x"])
 
+AC_MSG_CHECKING([if happy is available])
+AC_CHECK_PROGS(HAPPY, [happy])
+if test x"$HAPPY" = x ; then
+AC_MSG_ERROR([Please install happy before trying to build scoop.])
+fi
+
 AC_CONFIG_FILES([Makefile src/Makefile])
 
 AC_OUTPUT
