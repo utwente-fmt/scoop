@@ -34,6 +34,8 @@ clean::
 libscoop.so: LibScoop.hs lib_scoop.c
 	ghc --make $(GHCFLAGS) $(GHC_SCOOP_SHARED) -c ${top_srcdir}/src/LibScoop.hs
 	ghc $(GHCFLAGS) $(GHC_SCOOP_SHARED) -optc-O -optc-std=c99 -I. -I${top_srcdir}/src -o lib_scoop.o -c ${top_srcdir}/src/lib_scoop.c
+# the test below is necessary for older versions of GHC.
+# older versions of GHC generate LibScoop_stub.c which is then necessary in the compilation. 
 	if test -f  LibScoop_stub.c ; then \
 		ghc --make $(GHCFLAGS) $(GHC_SCOOP_SHARED) -shared -L$(GHC_LIBDIR) ${top_srcdir}/src/LibScoop.hs -o libscoop.so LibScoop_stub.dyn_o lib_scoop.o -lffi -lHSrts_thr-$(GHC_VERSION) ; \
 	else \
