@@ -17,6 +17,18 @@ AC_PROG_CC
 
 CHECK_GHC
 
+AC_MSG_CHECKING([if dynamic packages are available])
+GHCFLAGS="-dynamic"
+TRY_COMPILE_GHC([
+    main = putStr "Hello world!\n"
+],[],
+AC_MSG_FAILURE(
+"GHC's dynamic packages could not be found. 
+Without GHC's dynamic packages neither scoop nor libscoop can be built.
+On Ubuntu GHC's dynamic packages are in aptitude's ghc-dynamic package.
+Install them before continuing."
+))
+
 AC_MSG_CHECKING([if hashmap is available])
 TRY_COMPILE_GHC([
     import Data.HashMap
