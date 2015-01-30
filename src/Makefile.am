@@ -43,7 +43,7 @@ libscoop.so: LibScoop.hs lib_scoop.c
 all-local: libscoop.so
 
 install-exec-local: libscoop.so
-	$(INSTALL) libscoop.so $(DESTDIR)$(libdir)/libscoop.so
+	mkdir -p $(DESTDIR)$(libdir) && $(INSTALL) libscoop.so $(DESTDIR)$(libdir)/libscoop.so
 
 EXTRA_DIST = \
  Auxiliary.hs \
