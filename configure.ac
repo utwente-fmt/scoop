@@ -45,5 +45,7 @@ fi
 
 AC_CONFIG_FILES([Makefile src/Makefile])
 
+AC_DEFINE(HAVE_SCOOP,,[define if the SCOOP library is available])
+
 AC_OUTPUT
 
